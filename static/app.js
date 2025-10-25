@@ -24,7 +24,10 @@ const refreshHistoryBtn = document.getElementById('refreshHistoryBtn');
 const refreshAnalyticsBtn = document.getElementById('refreshAnalyticsBtn');
 
 // Stats elements
-const vehiclesDetected = document.getElementById('vehiclesDetected');
+const totalSpots = document.getElementById('totalSpots');
+const occupiedSpots = document.getElementById('occupiedSpots');
+const availableSpots = document.getElementById('availableSpots');
+const occupancyRate = document.getElementById('occupancyRate');
 
 // Browse button click handler
 browseBtn.addEventListener('click', () => {
@@ -198,7 +201,10 @@ stopBtn.addEventListener('click', () => {
         uploadSection.style.display = 'block';
         
         // Reset stats
-        vehiclesDetected.textContent = '0';
+        totalSpots.textContent = '0';
+        occupiedSpots.textContent = '0';
+        availableSpots.textContent = '0';
+        occupancyRate.textContent = '0%';
         
         // Clear intervals
         if (window.statsInterval) {
@@ -224,7 +230,13 @@ function startStatsUpdate() {
         .then(data => {
             if (data.error) return;
             
-            vehiclesDetected.textContent = data.occupied || 0;
+            totalSpots.textContent = data.total || 0;
+            occupiedSpots.textContent = data.occupied || 0;
+            availableSpots.textContent = data.available || 0;
+            
+            // Calculate occupancy rate
+            const rate = data.total > 0 ? ((data.occupied / data.total) * 100).toFixed(1) : 0;
+            occupancyRate.textContent = rate + '%';
         })
         .catch(error => {
             console.error('Error fetching stats:', error);

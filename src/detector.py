@@ -142,7 +142,7 @@ class ParkingDetector:
     
     def draw_detections(self, frame, vehicle_boxes):
         """
-        Draw detected vehicles on frame with bounding boxes
+        Draw detected vehicles and estimate parking spots
         
         Args:
             frame: Video frame to draw on
@@ -151,37 +151,43 @@ class ParkingDetector:
         Returns:
             Frame with drawn detections and statistics
         """
-        occupied_spots = len(vehicle_boxes)
+        frame_height, frame_width = frame.shape[:2]
         
-        # Draw each detected vehicle
-        for i, (x1, y1, x2, y2) in enumerate(vehicle_boxes):
-            # Draw red box for occupied (detected vehicle)
-            cv2.rectangle(frame, (x1, y1), (x2, y2), self.occupied_color, 3)
+        # Generate parking grid based on frame size
+        if not self.parking_spots:
+            self.parking_spots = self.generate_default_spots(frame_width, frame_height, rows=2, cols=10)
+        
+        total_spots = len(self.parking_spots)
+        occupied_count = 0
+        
+        # Check each parking spot for vehicles
+        for i, spot in enumerate(self.parking_spots):
+            is_occupied = self.check_spot_occupancy(spot, vehicle_boxes)
             
-            # Add label
-            label = f"Vehicle {i+1}"
-            font_scale = 0.6
-            thickness = 2
+            if is_occupied:
+                occupied_count += 1
+                color = self.occupied_color
+                status = "OCCUPIED"
+            else:
+                color = self.available_color
+                status = "FREE"
             
-            # Get text size for background
-            (text_width, text_height), baseline = cv2.getTextSize(
-                label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness
-            )
+            # Draw spot rectangle
+            x1, y1, x2, y2 = [int(v) for v in spot]
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             
-            # Draw background rectangle for text
-            cv2.rectangle(frame, 
-                         (x1, y1 - text_height - 10), 
-                         (x1 + text_width, y1), 
-                         self.occupied_color, -1)
-            
-            # Draw text
-            cv2.putText(frame, label, (x1, y1 - 5), 
-                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness)
+            # Draw spot number (small)
+            center_x = int((x1 + x2) / 2)
+            center_y = int((y1 + y2) / 2)
+            cv2.putText(frame, str(i+1), (center_x-10, center_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+        
+        available_spots = total_spots - occupied_count
         
         stats = {
-            'total': 0,  # Not tracking static spots
-            'occupied': occupied_spots,
-            'available': 0
+            'total': total_spots,
+            'occupied': occupied_count,
+            'available': available_spots
         }
         
         return frame, stats
@@ -200,30 +206,35 @@ class ParkingDetector:
     
     def generate_default_spots(self, frame_width, frame_height, rows=2, cols=10):
         """
-        Generate default parking spot grid
+        Generate default parking spot grid optimized for typical parking lot views
         
         Args:
             frame_width: Frame width
             frame_height: Frame height
-            rows: Number of rows
-            cols: Number of columns
+            rows: Number of rows (default 2)
+            cols: Number of columns (default 10)
             
         Returns:
             List of parking spot rectangles
         """
         spots = []
         
-        # Calculate spot dimensions
-        margin = 50
-        spacing = 10
+        # Calculate margins and spacing proportional to frame size
+        margin_x = int(frame_width * 0.05)  # 5% margin
+        margin_y = int(frame_height * 0.1)   # 10% margin for top/bottom
+        spacing = 5  # Small spacing between spots
         
-        spot_width = (frame_width - 2 * margin - (cols - 1) * spacing) // cols
-        spot_height = (frame_height - 2 * margin - (rows - 1) * spacing) // rows
+        # Calculate spot dimensions
+        available_width = frame_width - 2 * margin_x - (cols - 1) * spacing
+        available_height = frame_height - 2 * margin_y - (rows - 1) * spacing
+        
+        spot_width = available_width // cols
+        spot_height = available_height // rows
         
         for row in range(rows):
             for col in range(cols):
-                x1 = margin + col * (spot_width + spacing)
-                y1 = margin + row * (spot_height + spacing)
+                x1 = margin_x + col * (spot_width + spacing)
+                y1 = margin_y + row * (spot_height + spacing)
                 x2 = x1 + spot_width
                 y2 = y1 + spot_height
                 

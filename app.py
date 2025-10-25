@@ -138,18 +138,14 @@ def video_feed():
 
 @app.route('/stats')
 def get_stats():
-    """Get current vehicle detection statistics"""
+    """Get current parking statistics"""
     global current_processor
     
     if not current_processor:
         return jsonify({'error': 'No video source available'}), 400
     
-    # Return simple vehicle count
-    return jsonify({
-        'total': 0,
-        'occupied': 0,  # Updated from latest detection
-        'available': 0
-    })
+    # Return current stats from processor
+    return jsonify(current_processor.current_stats)
 
 
 @app.route('/history')

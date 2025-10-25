@@ -28,6 +28,7 @@ class VideoProcessor:
         self.frame_skip = 2  # Process every nth frame for performance
         self.frame_count = 0
         self.previous_states = {}  # Track previous spot states
+        self.current_stats = {'total': 0, 'occupied': 0, 'available': 0}  # Latest stats
         
     def open_video(self):
         """Open video source (file or stream)"""
@@ -69,6 +70,9 @@ class VideoProcessor:
         # Draw detected vehicles and get statistics
         processed_frame, stats = self.detector.draw_detections(frame, vehicle_boxes)
         
+        # Update current stats for API access
+        self.current_stats = stats
+        
         # Add statistics overlay
         self._draw_stats_overlay(processed_frame, stats)
         
@@ -81,13 +85,21 @@ class VideoProcessor:
         """Draw statistics overlay on frame"""
         # Create semi-transparent overlay
         overlay = frame.copy()
-        cv2.rectangle(overlay, (10, 10), (280, 70), (0, 0, 0), -1)
+        cv2.rectangle(overlay, (10, 10), (300, 130), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
         
         # Draw text
         y_offset = 35
-        cv2.putText(frame, f"Vehicles Detected: {stats['occupied']}", 
+        cv2.putText(frame, f"Total Spots: {stats['total']}", 
                    (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        
+        y_offset += 30
+        cv2.putText(frame, f"Occupied: {stats['occupied']}", 
+                   (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        
+        y_offset += 30
+        cv2.putText(frame, f"Available: {stats['available']}", 
+                   (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
     
     def _check_and_log_changes(self, stats):
         """Check for vehicle count changes and log to database"""
