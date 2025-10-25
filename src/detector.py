@@ -153,9 +153,9 @@ class ParkingDetector:
         """
         frame_height, frame_width = frame.shape[:2]
         
-        # Generate parking grid based on frame size
+        # Generate parking grid only once
         if not self.parking_spots:
-            self.parking_spots = self.generate_default_spots(frame_width, frame_height, rows=2, cols=10)
+            self.parking_spots = self.generate_default_spots(frame_width, frame_height)
         
         total_spots = len(self.parking_spots)
         occupied_count = 0
