@@ -8,5 +8,6 @@ class VideoProcessor:
         self.detector = ParkingDetector()
     
     def process_frame(self, frame):
-        pass
+        results = self.detector.detect(frame)
+        return results
 
