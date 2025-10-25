@@ -7,5 +7,6 @@ class ParkingDetector:
         self.model = YOLO(Config.MODEL_PATH)
     
     def detect(self, frame):
-        pass
+        results = self.model(frame)
+        return results
 
