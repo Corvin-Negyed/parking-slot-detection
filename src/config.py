@@ -10,4 +10,6 @@ class Config:
     DB_NAME = os.getenv('DB_NAME', 'parking_db')
     DB_USER = os.getenv('DB_USER', 'postgres')
     DB_PASSWORD = os.getenv('DB_PASSWORD', '')
+    
+    FLASK_ENV = os.getenv('FLASK_ENV', 'development')
 
