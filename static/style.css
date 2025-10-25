@@ -50,3 +50,7 @@ button {
     transition: background 0.3s ease;
 }
 
+button:hover {
+    background: #764ba2;
+}
+
