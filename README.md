@@ -1,4 +1,16 @@
-# SoloVision - Smart Parking Management System
+<div align="center">
+  <img src="logo.png" alt="SoloVision Logo" width="400"/>
+  
+  # SoloVision
+  ### Smart Parking Management System
+  
+  [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org)
+  [![Flask](https://img.shields.io/badge/Flask-3.0-green.svg)](https://flask.palletsprojects.com)
+  [![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-orange.svg)](https://github.com/ultralytics/ultralytics)
+  [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+</div>
+
+---
 
 ## Developers
 
