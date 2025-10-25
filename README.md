@@ -51,30 +51,33 @@ git clone <repository-url>
 cd parking-slot-detection
 ```
 
-2. Create virtual environment:
+2. Create and activate virtual environment:
+
+**On Linux/Mac:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 ```
+
+**On Windows:**
+```cmd
 python -m venv .venv
+.venv\Scripts\activate
 ```
 
-3. Activate virtual environment:
-```
-source .venv/bin/activate  # On Linux/Mac
-.venv\Scripts\activate     # On Windows
-```
-
-4. Install dependencies:
-```
+3. Install dependencies:
+```bash
 pip install -r requirements.txt
 ```
 
-5. Configure environment variables:
-```
+4. Configure environment variables:
+```bash
 cp .env.example .env
 ```
 Edit the `.env` file with your database credentials and configuration.
 
-6. Initialize the database (optional if using PostgreSQL):
-```
+5. Initialize the database (optional if using PostgreSQL):
+```bash
 python -c "from src.database import init_database; init_database()"
 ```
 
