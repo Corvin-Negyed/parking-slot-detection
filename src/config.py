@@ -1,3 +1,8 @@
+"""
+Configuration module for SoloVision parking detection system.
+Loads environment variables and provides application settings.
+"""
+
 import os
 from dotenv import load_dotenv
 
