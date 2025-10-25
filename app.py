@@ -1,3 +1,8 @@
+"""
+SoloVision - Smart Parking Management System
+Main Flask application for web interface and video processing.
+"""
+
 import os
 import time
 from flask import Flask, render_template, request, jsonify, Response
