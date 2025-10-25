@@ -1,3 +1,9 @@
+/**
+ * SoloVision - Smart Parking Management System
+ * Frontend JavaScript for video upload and real-time detection
+ * Handles drag-drop, video streaming, and statistics display
+ */
+
 // DOM Elements
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
@@ -69,7 +75,7 @@ dropZone.addEventListener('drop', (e) => {
 function handleFiles(files) {
     if (files.length === 0) return;
     
-    const file = files[0];
+        const file = files[0];
     
     // Check if file is a video
     if (!file.type.startsWith('video/')) {
