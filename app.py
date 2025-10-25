@@ -11,6 +11,7 @@ from werkzeug.utils import secure_filename
 from src.config import Config
 from src.video_processor import VideoProcessor
 from src.database import DatabaseManager
+from src.analytics import VehicleAnalytics
 
 app = Flask(__name__)
 CORS(app)
@@ -182,6 +183,64 @@ def get_history():
             'status': 'success',
             'detections': formatted_detections,
             'storage': 'postgresql' if db.use_postgres else 'csv'
+        })
+    
+    except Exception as e:
+        db.close()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/analytics')
+def get_analytics():
+    """Get comprehensive analytics from detection history"""
+    db = DatabaseManager()
+    
+    try:
+        # Get all detections
+        detections = db.get_recent_detections(limit=1000)
+        
+        if not detections:
+            return jsonify({
+                'status': 'success',
+                'message': 'No data available for analysis',
+                'data': {}
+            })
+        
+        # Generate analytics
+        analytics = VehicleAnalytics(detections)
+        report = analytics.get_comprehensive_report()
+        
+        db.close()
+        
+        return jsonify({
+            'status': 'success',
+            'data': report
+        })
+    
+    except Exception as e:
+        db.close()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/analytics/hourly')
+def get_hourly_analytics():
+    """Get hourly distribution analytics"""
+    db = DatabaseManager()
+    
+    try:
+        detections = db.get_recent_detections(limit=1000)
+        
+        if not detections:
+            return jsonify({'status': 'success', 'data': {}})
+        
+        analytics = VehicleAnalytics(detections)
+        hourly = analytics.get_hourly_distribution()
+        
+        db.close()
+        
+        return jsonify({
+            'status': 'success',
+            'data': hourly
         })
     
     except Exception as e:

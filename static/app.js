@@ -13,6 +13,7 @@ const connectBtn = document.getElementById('connectBtn');
 const uploadSection = document.getElementById('uploadSection');
 const videoSection = document.getElementById('videoSection');
 const historySection = document.getElementById('historySection');
+const analyticsSection = document.getElementById('analyticsSection');
 const uploadProgress = document.getElementById('uploadProgress');
 const progressFill = document.getElementById('progressFill');
 const progressText = document.getElementById('progressText');
@@ -20,6 +21,7 @@ const streamStatus = document.getElementById('streamStatus');
 const videoFeed = document.getElementById('videoFeed');
 const stopBtn = document.getElementById('stopBtn');
 const refreshHistoryBtn = document.getElementById('refreshHistoryBtn');
+const refreshAnalyticsBtn = document.getElementById('refreshAnalyticsBtn');
 
 // Stats elements
 const vehiclesDetected = document.getElementById('vehiclesDetected');
@@ -171,6 +173,7 @@ function startVideoFeed() {
     uploadSection.style.display = 'none';
     videoSection.style.display = 'block';
     historySection.style.display = 'block';
+    analyticsSection.style.display = 'block';
     
     // Set video feed source
     videoFeed.src = '/video_feed?t=' + new Date().getTime();
@@ -178,8 +181,9 @@ function startVideoFeed() {
     // Start stats update interval
     startStatsUpdate();
     
-    // Load history
+    // Load history and analytics
     loadHistory();
+    loadAnalytics();
 }
 
 // Stop video processing
@@ -190,6 +194,7 @@ stopBtn.addEventListener('click', () => {
         videoFeed.src = '';
         videoSection.style.display = 'none';
         historySection.style.display = 'none';
+        analyticsSection.style.display = 'none';
         uploadSection.style.display = 'block';
         
         // Reset stats
@@ -272,6 +277,136 @@ function displayHistory(detections, storage) {
 // Refresh history button
 refreshHistoryBtn.addEventListener('click', () => {
     loadHistory();
+});
+
+// Load analytics
+function loadAnalytics() {
+    fetch('/analytics')
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success' && data.data) {
+            displayAnalytics(data.data);
+        }
+    })
+    .catch(error => {
+        console.error('Error loading analytics:', error);
+    });
+}
+
+// Display analytics
+function displayAnalytics(analytics) {
+    // Overall Stats
+    if (analytics.overview) {
+        const stats = analytics.overview.overall_stats;
+        document.getElementById('overallStats').innerHTML = `
+            <p><strong>Total Records:</strong> ${analytics.overview.total_records}</p>
+            <p><strong>Average Vehicles:</strong> ${stats.average}</p>
+            <p><strong>Maximum:</strong> ${stats.max}</p>
+            <p><strong>Minimum:</strong> ${stats.min}</p>
+            <p><strong>Time Span:</strong> ${analytics.overview.time_span.start} to ${analytics.overview.time_span.end}</p>
+        `;
+    }
+    
+    // Trend Analysis
+    if (analytics.trend) {
+        const trend = analytics.trend;
+        const trendClass = trend.trend === 'increasing' ? 'trend-up' : trend.trend === 'decreasing' ? 'trend-down' : 'trend-stable';
+        document.getElementById('trendAnalysis').innerHTML = `
+            <p class="${trendClass}"><strong>Trend:</strong> ${trend.trend.toUpperCase()}</p>
+            <p><strong>Change:</strong> ${trend.change_percent}%</p>
+            <p><strong>First Half Avg:</strong> ${trend.first_half_avg}</p>
+            <p><strong>Second Half Avg:</strong> ${trend.second_half_avg}</p>
+        `;
+    }
+    
+    // Peak Hours
+    if (analytics.peak_hours) {
+        let peakHTML = '<table class="analytics-table"><thead><tr><th>Hour</th><th>Average</th><th>Max</th><th>Samples</th></tr></thead><tbody>';
+        analytics.peak_hours.forEach(peak => {
+            peakHTML += `
+                <tr>
+                    <td>${peak.hour}:00 - ${peak.hour + 1}:00</td>
+                    <td>${peak.average}</td>
+                    <td>${peak.max}</td>
+                    <td>${peak.samples}</td>
+                </tr>
+            `;
+        });
+        peakHTML += '</tbody></table>';
+        document.getElementById('peakHours').innerHTML = peakHTML;
+    }
+    
+    // Daily Summary
+    if (analytics.daily_summary) {
+        let dailyHTML = '<table class="analytics-table"><thead><tr><th>Date</th><th>Average</th><th>Max</th><th>Min</th><th>Samples</th></tr></thead><tbody>';
+        analytics.daily_summary.forEach(day => {
+            dailyHTML += `
+                <tr>
+                    <td>${day.date}</td>
+                    <td>${day.average}</td>
+                    <td>${day.max}</td>
+                    <td>${day.min}</td>
+                    <td>${day.total_samples}</td>
+                </tr>
+            `;
+        });
+        dailyHTML += '</tbody></table>';
+        document.getElementById('dailySummary').innerHTML = dailyHTML;
+    }
+    
+    // Draw hourly chart
+    drawHourlyChart(analytics.peak_hours || []);
+}
+
+// Draw hourly distribution chart (simple bar chart with canvas)
+function drawHourlyChart(peakHours) {
+    const canvas = document.getElementById('hourlyChart');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    canvas.width = canvas.offsetWidth;
+    canvas.height = 300;
+    
+    if (peakHours.length === 0) {
+        ctx.fillText('No data available', canvas.width / 2, canvas.height / 2);
+        return;
+    }
+    
+    // Simple bar chart
+    const padding = 40;
+    const barWidth = (canvas.width - 2 * padding) / 24;
+    const maxValue = Math.max(...peakHours.map(h => h.average));
+    
+    // Draw axes
+    ctx.strokeStyle = '#666';
+    ctx.beginPath();
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, canvas.height - padding);
+    ctx.lineTo(canvas.width - padding, canvas.height - padding);
+    ctx.stroke();
+    
+    // Draw bars for all 24 hours
+    for (let hour = 0; hour < 24; hour++) {
+        const hourData = peakHours.find(h => h.hour === hour) || { average: 0 };
+        const barHeight = (hourData.average / maxValue) * (canvas.height - 2 * padding);
+        const x = padding + hour * barWidth;
+        const y = canvas.height - padding - barHeight;
+        
+        ctx.fillStyle = '#667eea';
+        ctx.fillRect(x, y, barWidth - 2, barHeight);
+        
+        // Draw hour labels (every 3 hours)
+        if (hour % 3 === 0) {
+            ctx.fillStyle = '#333';
+            ctx.font = '10px Arial';
+            ctx.fillText(hour + 'h', x, canvas.height - padding + 15);
+        }
+    }
+}
+
+// Refresh analytics button
+refreshAnalyticsBtn.addEventListener('click', () => {
+    loadAnalytics();
 });
 
 // Show status message

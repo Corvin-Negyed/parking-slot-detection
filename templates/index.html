@@ -116,6 +116,46 @@
                     </table>
                 </div>
             </section>
+            
+            <!-- Analytics Section -->
+            <section class="analytics-section" id="analyticsSection" style="display: none;">
+                <div class="section-header">
+                    <h2>Analytics & Insights</h2>
+                    <button class="btn btn-secondary btn-small" id="refreshAnalyticsBtn">Refresh</button>
+                </div>
+                
+                <div class="analytics-container">
+                    <!-- Overview Cards -->
+                    <div class="analytics-overview" id="analyticsOverview">
+                        <div class="analytics-card">
+                            <h3>Overall Statistics</h3>
+                            <div id="overallStats">Loading...</div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Trend Analysis</h3>
+                            <div id="trendAnalysis">Loading...</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Peak Hours -->
+                    <div class="analytics-card full-width">
+                        <h3>Peak Traffic Hours</h3>
+                        <div id="peakHours">Loading...</div>
+                    </div>
+                    
+                    <!-- Hourly Distribution Chart -->
+                    <div class="analytics-card full-width">
+                        <h3>Hourly Distribution</h3>
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
+                    
+                    <!-- Daily Summary -->
+                    <div class="analytics-card full-width">
+                        <h3>Daily Summary</h3>
+                        <div id="dailySummary">Loading...</div>
+                    </div>
+                </div>
+            </section>
         </div>
     </main>
     
