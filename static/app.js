@@ -13,3 +13,8 @@ browseBtn.addEventListener('click', () => {
     dropZone.addEventListener(eventName, preventDefaults, false);
 });
 
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
