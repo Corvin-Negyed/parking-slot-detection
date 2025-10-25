@@ -69,7 +69,7 @@ pip install -r requirements.txt
 
 5. Configure environment variables:
 ```
-cp env.example .env
+cp .env.example .env
 ```
 Edit the `.env` file with your database credentials and configuration.
 
