@@ -6,4 +6,7 @@ class VideoProcessor:
     def __init__(self, video_path):
         self.video_path = video_path
         self.detector = ParkingDetector()
+    
+    def process_frame(self, frame):
+        pass
 
