@@ -21,3 +21,9 @@ function preventDefaults(e) {
 // Handle drop
 dropZone.addEventListener('drop', handleDrop, false);
 
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    handleFiles(files);
+}
+
