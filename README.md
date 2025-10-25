@@ -15,3 +15,12 @@ This project processes video feeds to detect parking space occupancy in real-tim
 - Drag-and-drop video upload
 - Live public camera stream support
 
+## Installation
+
+1. Clone the repository
+2. Create virtual environment: `python -m venv .venv`
+3. Activate virtual environment: `source .venv/bin/activate`
+4. Install dependencies: `pip install -r requirements.txt`
+5. Copy `.env.example` to `.env` and configure
+6. Run the application: `python app.py`
+
