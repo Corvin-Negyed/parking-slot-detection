@@ -3,16 +3,19 @@ flask==3.0.0
 flask-cors==4.0.0
 
 # Computer Vision
-opencv-python==4.8.1.78
-ultralytics==8.0.196
-pillow==10.1.0
+opencv-python>=4.8.0
+ultralytics>=8.0.0
+pillow>=10.0.0
 
 # Data Processing
-numpy==1.24.3
+numpy>=1.26.0
 
 # Database
 psycopg2-binary==2.9.9
 
 # Configuration
 python-dotenv==1.0.0
+
+# Additional dependencies
+werkzeug>=3.0.0
 
