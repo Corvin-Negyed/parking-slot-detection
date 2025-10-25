@@ -153,36 +153,34 @@ def get_stats():
 
 @app.route('/history')
 def get_history():
-    """Get parking history data"""
+    """Get vehicle detection history data"""
     db = DatabaseManager()
     
     try:
-        events = db.get_recent_events(limit=100)
+        detections = db.get_recent_detections(limit=100)
         
-        # Format events for response
-        formatted_events = []
-        for event in events:
+        # Format detections for response
+        formatted_detections = []
+        for detection in detections:
             if db.use_postgres:
-                formatted_events.append({
-                    'id': event[0],
-                    'spot_id': event[1],
-                    'status': event[2],
-                    'timestamp': str(event[3])
+                formatted_detections.append({
+                    'id': detection[0],
+                    'vehicle_count': detection[1],
+                    'timestamp': str(detection[2])
                 })
             else:
                 # CSV format
-                formatted_events.append({
-                    'id': event[0],
-                    'spot_id': event[1],
-                    'status': event[2],
-                    'timestamp': event[3]
+                formatted_detections.append({
+                    'id': detection[0],
+                    'vehicle_count': detection[1],
+                    'timestamp': detection[2]
                 })
         
         db.close()
         
         return jsonify({
             'status': 'success',
-            'events': formatted_events,
+            'detections': formatted_detections,
             'storage': 'postgresql' if db.use_postgres else 'csv'
         })
     

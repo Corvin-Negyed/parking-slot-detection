@@ -227,13 +227,13 @@ function startStatsUpdate() {
     }, 2000);
 }
 
-// Load parking history
+// Load vehicle detection history
 function loadHistory() {
     fetch('/history')
     .then(response => response.json())
     .then(data => {
         if (data.status === 'success') {
-            displayHistory(data.events, data.storage);
+            displayHistory(data.detections, data.storage);
         }
     })
     .catch(error => {
@@ -242,7 +242,7 @@ function loadHistory() {
 }
 
 // Display history in table
-function displayHistory(events, storage) {
+function displayHistory(detections, storage) {
     const storageInfo = document.getElementById('storageInfo');
     const tableBody = document.getElementById('historyTableBody');
     
@@ -252,18 +252,18 @@ function displayHistory(events, storage) {
     // Clear table
     tableBody.innerHTML = '';
     
-    if (events.length === 0) {
+    if (detections.length === 0) {
         tableBody.innerHTML = '<tr><td colspan="3" class="no-data">No data available</td></tr>';
         return;
     }
     
-    // Add rows
-    events.reverse().forEach(event => {
+    // Add rows (already sorted by timestamp DESC from backend)
+    detections.forEach(detection => {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${event.id}</td>
-            <td>${event.status}</td>
-            <td>${event.timestamp}</td>
+            <td>${detection.id}</td>
+            <td>${detection.vehicle_count}</td>
+            <td>${detection.timestamp}</td>
         `;
         tableBody.appendChild(row);
     });

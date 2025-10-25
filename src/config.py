@@ -26,7 +26,7 @@ class Config:
     
     # CSV Fallback Configuration
     USE_CSV_FALLBACK = os.getenv('USE_CSV_FALLBACK', 'true').lower() == 'true'
-    CSV_DATA_PATH = os.getenv('CSV_DATA_PATH', 'data/parking_events.csv')
+    CSV_DATA_PATH = os.getenv('CSV_DATA_PATH', 'data/vehicle_detections.csv')
     
     # Upload Configuration
     UPLOAD_FOLDER = 'uploads'

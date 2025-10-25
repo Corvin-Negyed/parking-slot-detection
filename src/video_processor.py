@@ -90,23 +90,25 @@ class VideoProcessor:
                    (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     
     def _check_and_log_changes(self, stats):
-        """Check for parking state changes and log to database"""
-        current_occupied = stats['occupied']
+        """Check for vehicle count changes and log to database"""
+        current_count = stats['occupied']
         
         # Initialize previous state if first run
-        if 'occupied' not in self.previous_states:
-            self.previous_states['occupied'] = current_occupied
+        if 'vehicle_count' not in self.previous_states:
+            self.previous_states['vehicle_count'] = current_count
+            # Log initial detection
+            self.db.save_detection(current_count)
             return
         
-        # Check if state changed
-        if current_occupied != self.previous_states['occupied']:
-            # Log the change
-            status = 'occupied' if current_occupied > self.previous_states['occupied'] else 'available'
+        # Check if count changed
+        if current_count != self.previous_states['vehicle_count']:
+            # Print for debugging
+            old_count = self.previous_states['vehicle_count']
+            print(f"Vehicle count changed: {old_count} -> {current_count}")
             
-            # Save to database (using spot 0 for overall status)
-            self.db.save_event(0, f"{current_occupied}_occupied")
-            
-            self.previous_states['occupied'] = current_occupied
+            # Log the change to database
+            self.db.save_detection(current_count)
+            self.previous_states['vehicle_count'] = current_count
     
     def process_video_stream(self):
         """

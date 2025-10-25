@@ -42,10 +42,9 @@ class DatabaseManager:
         
         cursor = self.connection.cursor()
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS parking_events (
+            CREATE TABLE IF NOT EXISTS vehicle_detections (
                 id SERIAL PRIMARY KEY,
-                spot_id INTEGER NOT NULL,
-                status VARCHAR(20) NOT NULL,
+                vehicle_count INTEGER NOT NULL,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -60,33 +59,33 @@ class DatabaseManager:
         if not os.path.exists(csv_path):
             with open(csv_path, 'w', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow(['id', 'spot_id', 'status', 'timestamp'])
+                writer.writerow(['id', 'vehicle_count', 'timestamp'])
     
-    def save_event(self, spot_id, status):
-        """Save parking event to database or CSV"""
+    def save_detection(self, vehicle_count):
+        """Save vehicle detection event to database or CSV"""
         if self.use_postgres:
-            self._save_to_postgres(spot_id, status)
+            self._save_to_postgres(vehicle_count)
         else:
-            self._save_to_csv(spot_id, status)
+            self._save_to_csv(vehicle_count)
     
-    def _save_to_postgres(self, spot_id, status):
-        """Save event to PostgreSQL"""
+    def _save_to_postgres(self, vehicle_count):
+        """Save detection to PostgreSQL"""
         if not self.connection:
             return
         
         try:
             cursor = self.connection.cursor()
             cursor.execute(
-                "INSERT INTO parking_events (spot_id, status) VALUES (%s, %s)",
-                (spot_id, status)
+                "INSERT INTO vehicle_detections (vehicle_count) VALUES (%s)",
+                (vehicle_count,)
             )
             self.connection.commit()
             cursor.close()
         except Exception as e:
             print(f"Error saving to PostgreSQL: {e}")
     
-    def _save_to_csv(self, spot_id, status):
-        """Save event to CSV file"""
+    def _save_to_csv(self, vehicle_count):
+        """Save detection to CSV file"""
         csv_path = Config.CSV_DATA_PATH
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
@@ -104,26 +103,26 @@ class DatabaseManager:
             # Append new row
             with open(csv_path, 'a', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow([next_id, spot_id, status, timestamp])
+                writer.writerow([next_id, vehicle_count, timestamp])
         except Exception as e:
             print(f"Error saving to CSV: {e}")
     
-    def get_recent_events(self, limit=100):
-        """Get recent parking events"""
+    def get_recent_detections(self, limit=100):
+        """Get recent vehicle detection events"""
         if self.use_postgres:
             return self._get_from_postgres(limit)
         else:
             return self._get_from_csv(limit)
     
     def _get_from_postgres(self, limit):
-        """Get events from PostgreSQL"""
+        """Get detections from PostgreSQL"""
         if not self.connection:
             return []
         
         try:
             cursor = self.connection.cursor()
             cursor.execute(
-                "SELECT * FROM parking_events ORDER BY timestamp DESC LIMIT %s",
+                "SELECT * FROM vehicle_detections ORDER BY timestamp DESC LIMIT %s",
                 (limit,)
             )
             results = cursor.fetchall()
@@ -134,7 +133,7 @@ class DatabaseManager:
             return []
     
     def _get_from_csv(self, limit):
-        """Get events from CSV file"""
+        """Get detections from CSV file"""
         csv_path = Config.CSV_DATA_PATH
         
         if not os.path.exists(csv_path):
@@ -145,7 +144,8 @@ class DatabaseManager:
                 reader = csv.reader(f)
                 next(reader)  # Skip header
                 rows = list(reader)
-                return rows[-limit:] if len(rows) > limit else rows
+                # Return in reverse order (most recent first)
+                return list(reversed(rows[-limit:])) if len(rows) > limit else list(reversed(rows))
         except Exception as e:
             print(f"Error reading from CSV: {e}")
             return []
