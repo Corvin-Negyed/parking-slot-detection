@@ -1,3 +1,8 @@
+"""
+Database management module for SoloVision.
+Handles PostgreSQL connection with CSV fallback for data persistence.
+"""
+
 import psycopg2
 import csv
 import os
