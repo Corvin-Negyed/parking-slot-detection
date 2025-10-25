@@ -14,5 +14,6 @@ def get_connection():
 
 
 def init_database():
-    pass
+    conn = get_connection()
+    cursor = conn.cursor()
 
