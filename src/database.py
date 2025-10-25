@@ -16,4 +16,10 @@ def get_connection():
 def init_database():
     conn = get_connection()
     cursor = conn.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parking_events (
+            id SERIAL PRIMARY KEY
+        )
+    ''')
 
