@@ -3,5 +3,6 @@ from src.config import Config
 
 
 class ParkingDetector:
-    pass
+    def __init__(self):
+        self.model = YOLO(Config.MODEL_PATH)
 
