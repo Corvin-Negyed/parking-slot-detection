@@ -3,5 +3,6 @@ from src.detector import ParkingDetector
 
 
 class VideoProcessor:
-    pass
+    def __init__(self, video_path):
+        self.video_path = video_path
 
