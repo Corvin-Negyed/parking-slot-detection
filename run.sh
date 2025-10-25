@@ -22,7 +22,7 @@ fi
 # Check if .env exists
 if [ ! -f ".env" ]; then
     echo "Creating .env file from example..."
-    cp env.example .env
+    cp .env.example .env
     echo "Please edit .env file with your configuration!"
 fi
 

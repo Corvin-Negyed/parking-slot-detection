@@ -23,7 +23,7 @@ if errorlevel 1 (
 REM Check if .env exists
 if not exist ".env" (
     echo Creating .env file from example...
-    copy env.example .env
+    copy .env.example .env
     echo Please edit .env file with your configuration!
 )
 
