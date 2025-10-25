@@ -3,50 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SoloVision - Parking Detection</title>
+    <title>SoloVision - Parking Detection System</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <header>
-        <h1>SoloVision</h1>
-        <p>Smart Parking Management System</p>
+        <div class="header-content">
+            <h1>SoloVision</h1>
+            <p class="subtitle">Smart Parking Management System</p>
+        </div>
     </header>
     
     <main>
         <div class="container">
-            <div class="upload-section">
-                <h2>Upload Video</h2>
-                <div id="dropZone" class="drop-zone">
-                    <p>Drag and drop video file here</p>
-                    <p>or</p>
-                    <input type="file" id="fileInput" accept="video/*" style="display: none;">
-                    <button id="browseBtn">Browse Files</button>
+            <!-- Upload Section -->
+            <section class="upload-section" id="uploadSection">
+                <div class="section-header">
+                    <h2>Video Source</h2>
+                    <p>Upload a video file or connect to a live camera stream</p>
                 </div>
                 
-                <div class="camera-section">
-                    <h3>Or use live camera stream</h3>
-                    <input type="text" id="cameraUrl" placeholder="Enter camera stream URL">
-                    <button id="connectBtn">Connect to Stream</button>
-                </div>
-            </div>
-            
-            <div class="video-section" id="videoSection" style="display: none;">
-                <h2>Live Detection</h2>
-                <canvas id="videoCanvas"></canvas>
-                
-                <div class="stats">
-                    <h3>Parking Statistics</h3>
-                    <div id="statsData">
-                        <p>Total Spots: <span id="totalSpots">0</span></p>
-                        <p>Occupied: <span id="occupiedSpots">0</span></p>
-                        <p>Available: <span id="availableSpots">0</span></p>
+                <div class="upload-options">
+                    <!-- File Upload -->
+                    <div class="upload-box">
+                        <h3>Upload Video File</h3>
+                        <div id="dropZone" class="drop-zone">
+                            <div class="drop-icon">📹</div>
+                            <p class="drop-text">Drag and drop your video here</p>
+                            <p class="drop-text-or">or</p>
+                            <input type="file" id="fileInput" accept="video/*" style="display: none;">
+                            <button class="btn btn-primary" id="browseBtn">Browse Files</button>
+                            <p class="file-info">Supported formats: MP4, AVI, MOV, MKV</p>
+                        </div>
+                        <div id="uploadProgress" class="upload-progress" style="display: none;">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill"></div>
+                            </div>
+                            <p id="progressText">Uploading...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Camera Stream -->
+                    <div class="upload-box">
+                        <h3>Live Camera Stream</h3>
+                        <div class="camera-input">
+                            <input type="text" id="cameraUrl" placeholder="Enter camera stream URL (e.g., rtsp://...)" class="input-field">
+                            <button class="btn btn-secondary" id="connectBtn">Connect to Stream</button>
+                            <p class="file-info">Connect to public IP cameras or RTSP streams</p>
+                            <div id="streamStatus" class="status-message"></div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
+            
+            <!-- Video Display Section -->
+            <section class="video-section" id="videoSection" style="display: none;">
+                <div class="section-header">
+                    <h2>Live Detection</h2>
+                    <div class="controls">
+                        <button class="btn btn-danger" id="stopBtn">Stop Processing</button>
+                    </div>
+                </div>
+                
+                <div class="video-container">
+                    <img id="videoFeed" class="video-feed" src="" alt="Video feed will appear here">
+                </div>
+                
+                <!-- Statistics Panel -->
+                <div class="stats-panel">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Spots</div>
+                        <div class="stat-value" id="totalSpots">0</div>
+                    </div>
+                    <div class="stat-card occupied">
+                        <div class="stat-label">Occupied</div>
+                        <div class="stat-value" id="occupiedSpots">0</div>
+                    </div>
+                    <div class="stat-card available">
+                        <div class="stat-label">Available</div>
+                        <div class="stat-value" id="availableSpots">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Occupancy Rate</div>
+                        <div class="stat-value" id="occupancyRate">0%</div>
+                    </div>
+                </div>
+                
+                <!-- Legend -->
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color occupied-color"></div>
+                        <span>Occupied (Red)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color available-color"></div>
+                        <span>Available (Green)</span>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- History Section -->
+            <section class="history-section" id="historySection" style="display: none;">
+                <div class="section-header">
+                    <h2>Parking History</h2>
+                    <button class="btn btn-secondary btn-small" id="refreshHistoryBtn">Refresh</button>
+                </div>
+                
+                <div class="history-container">
+                    <div id="storageInfo" class="storage-info"></div>
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Status</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr>
+                                <td colspan="3" class="no-data">No data available</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
     </main>
+    
+    <footer>
+        <div class="footer-content">
+            <p>&copy; 2024 SoloVision - Smart Parking Management System</p>
+            <p class="developers">Developed by Umran Er (BE59IT) and Cem Akan (JKVNGM)</p>
+        </div>
+    </footer>
     
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
-
