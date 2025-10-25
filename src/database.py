@@ -19,7 +19,8 @@ def init_database():
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS parking_events (
-            id SERIAL PRIMARY KEY
+            id SERIAL PRIMARY KEY,
+            spot_id INTEGER NOT NULL
         )
     ''')
 
