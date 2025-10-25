@@ -8,3 +8,8 @@ browseBtn.addEventListener('click', () => {
     fileInput.click();
 });
 
+// Prevent default drag behaviors
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, preventDefaults, false);
+});
+
