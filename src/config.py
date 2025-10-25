@@ -12,4 +12,5 @@ class Config:
     DB_PASSWORD = os.getenv('DB_PASSWORD', '')
     
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')
+    FLASK_PORT = int(os.getenv('FLASK_PORT', '5000'))
 
