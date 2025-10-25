@@ -172,15 +172,15 @@ class ParkingDetector:
                 color = self.available_color
                 status = "FREE"
             
-            # Draw spot rectangle
+            # Draw spot rectangle with thin lines
             x1, y1, x2, y2 = [int(v) for v in spot]
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 1)
             
-            # Draw spot number (small)
+            # Draw spot number (smaller font)
             center_x = int((x1 + x2) / 2)
             center_y = int((y1 + y2) / 2)
-            cv2.putText(frame, str(i+1), (center_x-10, center_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+            cv2.putText(frame, str(i+1), (center_x-8, center_y+4), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1)
         
         available_spots = total_spots - occupied_count
         
