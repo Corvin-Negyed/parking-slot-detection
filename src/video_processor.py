@@ -28,7 +28,7 @@ class VideoProcessor:
         self.frame_skip = 2  # Process every nth frame for performance
         self.frame_count = 0
         self.previous_states = {}  # Track previous spot states
-        self.current_stats = {'total': 0, 'occupied': 0, 'available': 0}  # Latest stats
+        self.current_stats = {'total': 24, 'occupied': 0, 'available': 24}  # Latest stats (3 rows x 8 cols)
         
     def open_video(self):
         """Open video source (file or stream)"""
