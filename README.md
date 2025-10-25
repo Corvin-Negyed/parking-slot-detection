@@ -24,3 +24,9 @@ This project processes video feeds to detect parking space occupancy in real-tim
 5. Copy `.env.example` to `.env` and configure
 6. Run the application: `python app.py`
 
+## Usage
+
+1. Open browser and navigate to `http://localhost:5000`
+2. Upload a video file or enter a live camera stream URL
+3. View real-time detection results and statistics
+
