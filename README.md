@@ -11,4 +11,7 @@ This project processes video feeds to detect parking space occupancy in real-tim
 - Real-time parking space detection using YOLOv8
 - Web-based dashboard for monitoring
 - Historical data analytics
+- Cloud database integration
+- Drag-and-drop video upload
+- Live public camera stream support
 
