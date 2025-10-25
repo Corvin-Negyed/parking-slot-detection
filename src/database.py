@@ -20,7 +20,8 @@ def init_database():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS parking_events (
             id SERIAL PRIMARY KEY,
-            spot_id INTEGER NOT NULL
+            spot_id INTEGER NOT NULL,
+            status VARCHAR(20) NOT NULL
         )
     ''')
 
