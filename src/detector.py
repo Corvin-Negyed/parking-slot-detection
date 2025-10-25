@@ -142,7 +142,7 @@ class ParkingDetector:
     
     def draw_detections(self, frame, vehicle_boxes):
         """
-        Draw detected vehicles and estimate parking spots
+        Draw only detected vehicles with bounding boxes
         
         Args:
             frame: Video frame to draw on
@@ -151,43 +151,37 @@ class ParkingDetector:
         Returns:
             Frame with drawn detections and statistics
         """
-        frame_height, frame_width = frame.shape[:2]
+        vehicle_count = len(vehicle_boxes)
         
-        # Generate parking grid only once
-        if not self.parking_spots:
-            self.parking_spots = self.generate_default_spots(frame_width, frame_height)
-        
-        total_spots = len(self.parking_spots)
-        occupied_count = 0
-        
-        # Check each parking spot for vehicles
-        for i, spot in enumerate(self.parking_spots):
-            is_occupied = self.check_spot_occupancy(spot, vehicle_boxes)
+        # Draw each detected vehicle
+        for i, (x1, y1, x2, y2) in enumerate(vehicle_boxes):
+            # Draw bounding box around vehicle
+            cv2.rectangle(frame, (x1, y1), (x2, y2), self.occupied_color, 2)
             
-            if is_occupied:
-                occupied_count += 1
-                color = self.occupied_color
-                status = "OCCUPIED"
-            else:
-                color = self.available_color
-                status = "FREE"
+            # Add vehicle label
+            label = f"Vehicle {i+1}"
+            font_scale = 0.5
+            thickness = 1
             
-            # Draw spot rectangle with thin lines
-            x1, y1, x2, y2 = [int(v) for v in spot]
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 1)
+            # Get text size for background
+            (text_width, text_height), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness
+            )
             
-            # Draw spot number (smaller font)
-            center_x = int((x1 + x2) / 2)
-            center_y = int((y1 + y2) / 2)
-            cv2.putText(frame, str(i+1), (center_x-8, center_y+4), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1)
-        
-        available_spots = total_spots - occupied_count
+            # Draw semi-transparent background for text
+            cv2.rectangle(frame, 
+                         (x1, y1 - text_height - 8), 
+                         (x1 + text_width + 4, y1), 
+                         self.occupied_color, -1)
+            
+            # Draw text
+            cv2.putText(frame, label, (x1 + 2, y1 - 4), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness)
         
         stats = {
-            'total': total_spots,
-            'occupied': occupied_count,
-            'available': available_spots
+            'total': 0,
+            'occupied': vehicle_count,
+            'available': 0
         }
         
         return frame, stats
