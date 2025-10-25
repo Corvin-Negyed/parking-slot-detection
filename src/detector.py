@@ -204,37 +204,37 @@ class ParkingDetector:
             ys = [p[1] for p in spot]
             return (int(sum(xs) / len(xs)), int(sum(ys) / len(ys)))
     
-    def generate_default_spots(self, frame_width, frame_height, rows=2, cols=10):
+    def generate_default_spots(self, frame_width, frame_height, rows=3, cols=8):
         """
-        Generate default parking spot grid optimized for typical parking lot views
+        Generate compact parking spot grid
         
         Args:
             frame_width: Frame width
             frame_height: Frame height
-            rows: Number of rows (default 2)
-            cols: Number of columns (default 10)
+            rows: Number of rows (default 3)
+            cols: Number of columns (default 8)
             
         Returns:
             List of parking spot rectangles
         """
         spots = []
         
-        # Calculate margins and spacing proportional to frame size
-        margin_x = int(frame_width * 0.05)  # 5% margin
-        margin_y = int(frame_height * 0.1)   # 10% margin for top/bottom
-        spacing = 5  # Small spacing between spots
+        # Smaller, more realistic parking spots
+        spot_width = 80  # Fixed width for consistency
+        spot_height = 60  # Fixed height
+        spacing = 10
         
-        # Calculate spot dimensions
-        available_width = frame_width - 2 * margin_x - (cols - 1) * spacing
-        available_height = frame_height - 2 * margin_y - (rows - 1) * spacing
+        # Center the grid
+        total_width = cols * spot_width + (cols - 1) * spacing
+        total_height = rows * spot_height + (rows - 1) * spacing
         
-        spot_width = available_width // cols
-        spot_height = available_height // rows
+        start_x = (frame_width - total_width) // 2
+        start_y = (frame_height - total_height) // 2
         
         for row in range(rows):
             for col in range(cols):
-                x1 = margin_x + col * (spot_width + spacing)
-                y1 = margin_y + row * (spot_height + spacing)
+                x1 = start_x + col * (spot_width + spacing)
+                y1 = start_y + row * (spot_height + spacing)
                 x2 = x1 + spot_width
                 y2 = y1 + spot_height
                 
