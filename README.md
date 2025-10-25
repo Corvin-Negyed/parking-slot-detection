@@ -1,7 +1,6 @@
 <div align="center">
   <img src="logo.png" alt="SoloVision Logo" width="400"/>
-  
-  # SoloVision
+
   ### Smart Parking Management System
   
   [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org)
@@ -13,7 +12,6 @@
 ---
 
 ## Developers
-
 - Umran Er (Neptun: BE59IT)
 - Cem Akan (Neptun: JKVNGM)
 
