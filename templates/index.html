@@ -14,7 +14,7 @@
 <body>
     <header>
         <div class="header-content">
-            <h1>SoloVision</h1>
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="SoloVision" class="header-logo">
             <p class="subtitle">Smart Parking Management System</p>
         </div>
     </header>
@@ -76,21 +76,9 @@
                 
                 <!-- Statistics Panel -->
                 <div class="stats-panel">
-                    <div class="stat-card">
-                        <div class="stat-label">Total Spots</div>
-                        <div class="stat-value" id="totalSpots">0</div>
-                    </div>
                     <div class="stat-card occupied">
-                        <div class="stat-label">Occupied</div>
-                        <div class="stat-value" id="occupiedSpots">0</div>
-                    </div>
-                    <div class="stat-card available">
-                        <div class="stat-label">Available</div>
-                        <div class="stat-value" id="availableSpots">0</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Occupancy Rate</div>
-                        <div class="stat-value" id="occupancyRate">0%</div>
+                        <div class="stat-label">Vehicles Detected</div>
+                        <div class="stat-value" id="vehiclesDetected">0</div>
                     </div>
                 </div>
                 
@@ -98,11 +86,7 @@
                 <div class="legend">
                     <div class="legend-item">
                         <div class="legend-color occupied-color"></div>
-                        <span>Occupied (Red)</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color available-color"></div>
-                        <span>Available (Green)</span>
+                        <span>Detected Vehicle (Red Box)</span>
                     </div>
                 </div>
             </section>

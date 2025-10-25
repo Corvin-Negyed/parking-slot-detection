@@ -140,51 +140,48 @@ class ParkingDetector:
         
         return intersection_ratio > threshold
     
-    def draw_parking_spots(self, frame, vehicle_boxes):
+    def draw_detections(self, frame, vehicle_boxes):
         """
-        Draw parking spots on frame with color coding
+        Draw detected vehicles on frame with bounding boxes
         
         Args:
             frame: Video frame to draw on
             vehicle_boxes: List of detected vehicle bounding boxes
             
         Returns:
-            Frame with drawn parking spots and statistics
+            Frame with drawn detections and statistics
         """
-        total_spots = len(self.parking_spots)
-        occupied_spots = 0
+        occupied_spots = len(vehicle_boxes)
         
-        for i, spot in enumerate(self.parking_spots):
-            is_occupied = self.check_spot_occupancy(spot, vehicle_boxes)
+        # Draw each detected vehicle
+        for i, (x1, y1, x2, y2) in enumerate(vehicle_boxes):
+            # Draw red box for occupied (detected vehicle)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), self.occupied_color, 3)
             
-            if is_occupied:
-                occupied_spots += 1
-                color = self.occupied_color
-            else:
-                color = self.available_color
+            # Add label
+            label = f"Vehicle {i+1}"
+            font_scale = 0.6
+            thickness = 2
             
-            # Draw spot
-            if len(spot) == 4 and isinstance(spot[0], (int, float)):
-                # Rectangle
-                x1, y1, x2, y2 = [int(v) for v in spot]
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            else:
-                # Polygon
-                pts = np.array(spot, np.int32)
-                pts = pts.reshape((-1, 1, 2))
-                cv2.polylines(frame, [pts], True, color, 2)
+            # Get text size for background
+            (text_width, text_height), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness
+            )
             
-            # Draw spot number
-            center = self._get_spot_center(spot)
-            cv2.putText(frame, str(i+1), center, 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-        
-        available_spots = total_spots - occupied_spots
+            # Draw background rectangle for text
+            cv2.rectangle(frame, 
+                         (x1, y1 - text_height - 10), 
+                         (x1 + text_width, y1), 
+                         self.occupied_color, -1)
+            
+            # Draw text
+            cv2.putText(frame, label, (x1, y1 - 5), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness)
         
         stats = {
-            'total': total_spots,
+            'total': 0,  # Not tracking static spots
             'occupied': occupied_spots,
-            'available': available_spots
+            'available': 0
         }
         
         return frame, stats
