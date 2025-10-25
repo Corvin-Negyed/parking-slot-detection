@@ -27,3 +27,10 @@ function handleDrop(e) {
     handleFiles(files);
 }
 
+function handleFiles(files) {
+    if (files.length > 0) {
+        const file = files[0];
+        console.log('File selected:', file.name);
+    }
+}
+
