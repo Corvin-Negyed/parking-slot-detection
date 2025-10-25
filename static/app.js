@@ -18,3 +18,6 @@ function preventDefaults(e) {
     e.stopPropagation();
 }
 
+// Handle drop
+dropZone.addEventListener('drop', handleDrop, false);
+
