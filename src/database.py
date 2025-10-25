@@ -21,7 +21,8 @@ def init_database():
         CREATE TABLE IF NOT EXISTS parking_events (
             id SERIAL PRIMARY KEY,
             spot_id INTEGER NOT NULL,
-            status VARCHAR(20) NOT NULL
+            status VARCHAR(20) NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
 
