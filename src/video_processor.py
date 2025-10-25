@@ -1,3 +1,8 @@
+"""
+Video processing module for real-time parking detection.
+Handles video streams and file processing with frame-by-frame analysis.
+"""
+
 import cv2
 import time
 import base64
