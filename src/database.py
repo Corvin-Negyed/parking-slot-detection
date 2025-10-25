@@ -25,4 +25,8 @@ def init_database():
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
 
