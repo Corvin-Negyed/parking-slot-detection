@@ -12,3 +12,7 @@ def get_connection():
     )
     return conn
 
+
+def init_database():
+    pass
+
