@@ -30,3 +30,12 @@ This project processes video feeds to detect parking space occupancy in real-tim
 2. Upload a video file or enter a live camera stream URL
 3. View real-time detection results and statistics
 
+## Technologies
+
+- Python 3.x
+- Flask - Web framework
+- YOLOv8 - Object detection
+- OpenCV - Video processing
+- PostgreSQL - Database
+- HTML/CSS/JavaScript - Frontend
+
