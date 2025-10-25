@@ -1,9 +1,18 @@
+# Web Framework
 flask==3.0.0
-opencv-python==4.8.1.78
-numpy==1.24.3
-ultralytics==8.0.196
-psycopg2-binary==2.9.9
-python-dotenv==1.0.0
 flask-cors==4.0.0
+
+# Computer Vision
+opencv-python==4.8.1.78
+ultralytics==8.0.196
 pillow==10.1.0
+
+# Data Processing
+numpy==1.24.3
+
+# Database
+psycopg2-binary==2.9.9
+
+# Configuration
+python-dotenv==1.0.0
 
