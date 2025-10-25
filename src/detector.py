@@ -1,3 +1,8 @@
+"""
+Parking detection module using YOLOv8.
+Detects vehicles and parking spot occupancy with visual feedback.
+"""
+
 import cv2
 import numpy as np
 from ultralytics import YOLO
