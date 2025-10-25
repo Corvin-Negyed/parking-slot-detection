@@ -1,41 +1,141 @@
 # SoloVision - Smart Parking Management System
 
-A smart parking management system using computer vision and cloud analytics.
+## Developers
 
-## Overview
+- Umran Er (Neptun: BE59IT)
+- Cem Akan (Neptun: JKVNGM)
 
-This project processes video feeds to detect parking space occupancy in real-time.
+## Project Overview
+
+This project implements a smart parking management system using computer vision technology. The system processes real-time camera feeds to detect parking space occupancy and provides both live monitoring and historical analytics.
+
+The main objective is to track parking spot status over time by logging when spaces become occupied or available. This historical data enables valuable insights such as identifying peak parking hours and usage patterns.
 
 ## Features
 
 - Real-time parking space detection using YOLOv8
-- Web-based dashboard for monitoring
+- Visual feedback with color-coded parking spots (red for occupied, green for available)
+- Web-based dashboard for live monitoring
+- Video upload via drag-and-drop or file selection
+- Support for live camera stream URLs
+- Cloud database integration with PostgreSQL
+- CSV fallback storage when database is unavailable
 - Historical data analytics
-- Cloud database integration
-- Drag-and-drop video upload
-- Live public camera stream support
+- Modern and responsive user interface
+
+## Hardware Requirements
+
+- Personal computer for development and testing
+- Pre-recorded videos or live camera streams for testing
+
+## Software Technologies
+
+### Core Technologies
+
+- Python: Main programming language
+- OpenCV: Image processing and video handling
+- YOLOv8: Object detection model
+- NumPy: Data manipulation
+
+### Cloud and Web Technologies
+
+- Flask: Web framework
+- PostgreSQL: Cloud database for historical data
+- HTML/CSS/JavaScript: Frontend interface
 
 ## Installation
 
-1. Clone the repository
-2. Create virtual environment: `python -m venv .venv`
-3. Activate virtual environment: `source .venv/bin/activate`
-4. Install dependencies: `pip install -r requirements.txt`
-5. Copy `.env.example` to `.env` and configure
-6. Run the application: `python app.py`
+1. Clone the repository:
+```
+git clone <repository-url>
+cd parking-slot-detection
+```
+
+2. Create virtual environment:
+```
+python -m venv .venv
+```
+
+3. Activate virtual environment:
+```
+source .venv/bin/activate  # On Linux/Mac
+.venv\Scripts\activate     # On Windows
+```
+
+4. Install dependencies:
+```
+pip install -r requirements.txt
+```
+
+5. Configure environment variables:
+```
+cp env.example .env
+```
+Edit the `.env` file with your database credentials and configuration.
+
+6. Initialize the database (optional if using PostgreSQL):
+```
+python -c "from src.database import init_database; init_database()"
+```
 
 ## Usage
 
-1. Open browser and navigate to `http://localhost:5000`
-2. Upload a video file or enter a live camera stream URL
-3. View real-time detection results and statistics
+1. Start the application:
+```
+python app.py
+```
 
-## Technologies
+2. Open your web browser and navigate to:
+```
+http://localhost:5000
+```
 
-- Python 3.x
-- Flask - Web framework
-- YOLOv8 - Object detection
-- OpenCV - Video processing
-- PostgreSQL - Database
-- HTML/CSS/JavaScript - Frontend
+3. Upload a video file:
+   - Drag and drop a video file into the upload zone, or
+   - Click "Browse Files" to select a video from your computer
 
+4. Alternatively, connect to a live camera stream:
+   - Enter the camera stream URL in the input field
+   - Click "Connect to Stream"
+
+5. View the results:
+   - Watch real-time detection with color-coded parking spots
+   - Monitor live statistics (total spots, occupied, available)
+   - Access historical data and analytics
+
+## Database Configuration
+
+The system supports two storage modes:
+
+1. PostgreSQL (Primary): Configure database credentials in `.env` file
+2. CSV Fallback (Secondary): Automatically activates if PostgreSQL is unavailable
+
+Data is stored with timestamp information for historical analysis.
+
+## Project Structure
+
+```
+parking-slot-detection/
+├── app.py                 # Flask application entry point
+├── src/
+│   ├── config.py         # Configuration management
+│   ├── database.py       # Database operations
+│   ├── detector.py       # YOLOv8 detection logic
+│   └── video_processor.py # Video processing pipeline
+├── static/
+│   ├── app.js            # Frontend JavaScript
+│   └── style.css         # Styling
+├── templates/
+│   └── index.html        # Main web interface
+├── Models/               # YOLOv8 trained models
+├── uploads/              # Uploaded video storage
+└── data/                 # CSV data storage (fallback)
+```
+
+## Contributing
+
+This is an academic project developed as part of coursework.
+
+## License
+
+This project is for educational purposes.
