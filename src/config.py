@@ -5,5 +5,5 @@ load_dotenv()
 
 
 class Config:
-    pass
+    DB_HOST = os.getenv('DB_HOST', 'localhost')
 
