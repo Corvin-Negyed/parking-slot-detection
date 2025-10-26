@@ -40,8 +40,9 @@ class VideoProcessor:
         print(f"Video OK: {self.width}x{self.height} @ {self.fps}fps")
         
         # Reset for new video
+        self.detector.learning_frames = []
+        self.detector.learning_complete = False
         self.detector.parking_grid = []
-        self.detector.grid_initialized = False
         self.frame_count = 0
         self.previous_states = {}
         

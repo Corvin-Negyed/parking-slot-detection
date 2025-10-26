@@ -1,5 +1,5 @@
 """
-Parking detection with YOLOv8 and smart grid
+Parking detection with vehicle pattern analysis
 """
 
 import cv2
@@ -11,176 +11,181 @@ from src.config import Config
 class ParkingDetector:
     def __init__(self, parking_spots=None):
         """Initialize"""
-        print(f"Loading YOLOv8 model...")
+        print("Initializing YOLOv8...")
         self.model = YOLO(Config.MODEL_PATH)
         self.occupied_color = (0, 0, 255)
         self.available_color = (0, 255, 0)
+        
+        # Learning system
+        self.learning_frames = []
+        self.learning_complete = False
+        self.max_learning_frames = 15
         self.parking_grid = []
-        self.grid_initialized = False
         
     def detect_vehicles(self, frame):
-        """Detect ALL objects with YOLO"""
-        # Lower confidence to detect more
-        results = self.model(frame, conf=0.2, iou=0.5, verbose=False)
-        return results
+        """Detect vehicles with YOLO"""
+        return self.model(frame, conf=0.25, iou=0.45, verbose=False)
     
     def get_vehicle_bboxes(self, results):
-        """Get vehicle bounding boxes"""
-        vehicles = []
+        """Extract vehicle boxes"""
+        boxes = []
         
         if results:
-            for result in results:
-                if result.boxes is not None:
-                    for box in result.boxes:
+            for r in results:
+                if r.boxes is not None:
+                    for box in r.boxes:
                         cls = int(box.cls[0])
                         conf = float(box.conf[0])
                         
-                        # Cars(2), motorcycles(3), buses(5), trucks(7)
-                        if cls in [2, 3, 5, 7]:
+                        if cls in [2, 3, 5, 7]:  # vehicles
                             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                            vehicles.append((int(x1), int(y1), int(x2), int(y2)))
+                            boxes.append((int(x1), int(y1), int(x2), int(y2)))
         
-        return vehicles
+        return boxes
     
-    def create_smart_grid(self, frame, vehicle_boxes):
-        """Create parking grid based on detected vehicles"""
-        h, w = frame.shape[:2]
-        
-        if not vehicle_boxes or len(vehicle_boxes) < 3:
+    def build_parking_grid(self, all_vehicles, frame_w, frame_h):
+        """Build complete parking grid from collected vehicles"""
+        if len(all_vehicles) < 5:
             return []
         
-        # Analyze vehicle positions to understand parking layout
-        vehicle_data = []
-        for x1, y1, x2, y2 in vehicle_boxes:
-            cx = (x1 + x2) // 2
-            cy = (y1 + y2) // 2
-            vw = x2 - x1
-            vh = y2 - y1
-            vehicle_data.append({'cx': cx, 'cy': cy, 'w': vw, 'h': vh, 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2})
+        # Sort by y then x
+        sorted_v = sorted(all_vehicles, key=lambda v: (v[1], v[0]))
         
-        # Sort by y position to find rows
-        vehicle_data.sort(key=lambda v: v['cy'])
-        
-        # Find rows (group vehicles with similar y)
+        # Group into rows
         rows = []
-        current_row = [vehicle_data[0]]
+        current_row = [sorted_v[0]]
         
-        for v in vehicle_data[1:]:
-            if abs(v['cy'] - current_row[-1]['cy']) < h * 0.15:  # Same row
+        for v in sorted_v[1:]:
+            if abs(v[1] - current_row[0][1]) < frame_h * 0.12:
                 current_row.append(v)
             else:
-                if len(current_row) >= 3:  # Valid row needs 3+ vehicles
+                if len(current_row) >= 2:
                     rows.append(current_row)
                 current_row = [v]
         
-        if len(current_row) >= 3:
+        if len(current_row) >= 2:
             rows.append(current_row)
         
         if not rows:
             return []
         
-        # Create grid cells for each row
-        grid_cells = []
+        # Create grid
+        grid = []
         
         for row in rows:
-            # Sort row by x position
-            row.sort(key=lambda v: v['cx'])
+            row.sort(key=lambda v: v[0])  # sort by x
             
-            # Get average vehicle size in this row
-            avg_w = int(np.mean([v['w'] for v in row]))
-            avg_h = int(np.mean([v['h'] for v in row]))
+            # Calculate average vehicle size
+            widths = [v[2] - v[0] for v in row]
+            heights = [v[3] - v[1] for v in row]
+            avg_w = int(np.median(widths))
+            avg_h = int(np.median(heights))
             
             # Get row bounds
-            row_y_min = int(np.min([v['y1'] for v in row]))
-            row_y_max = int(np.max([v['y2'] for v in row]))
+            y_min = int(np.min([v[1] for v in row]))
+            y_max = int(np.max([v[3] for v in row]))
             
-            # Find leftmost and rightmost
-            leftmost_x = row[0]['x1']
-            rightmost_x = row[-1]['x2']
+            # Calculate spacing
+            if len(row) > 1:
+                centers = [(v[0] + v[2])//2 for v in row]
+                spacings = [centers[i+1] - centers[i] for i in range(len(centers)-1)]
+                avg_spacing = int(np.median(spacings))
+            else:
+                avg_spacing = avg_w + 20
             
-            # Calculate average spacing
-            spacings = []
-            for i in range(len(row) - 1):
-                spacing = row[i+1]['cx'] - row[i]['cx']
-                spacings.append(spacing)
+            # Get row range
+            x_start = row[0][0]
+            x_end = row[-1][2]
             
-            avg_spacing = int(np.mean(spacings)) if spacings else avg_w + 20
-            
-            # Generate grid for entire row (including gaps)
-            num_spots = max(len(row) + 3, int((rightmost_x - leftmost_x) / avg_spacing))
+            # Generate ALL spots (including empty ones)
+            num_spots = int((x_end - x_start) / avg_spacing) + 2
             
             for i in range(num_spots):
-                x_center = leftmost_x + i * avg_spacing
+                cx = x_start + i * avg_spacing
                 
-                if x_center - avg_w//2 >= 0 and x_center + avg_w//2 < w:
-                    cell = {
-                        'x1': x_center - avg_w//2,
-                        'y1': row_y_min,
-                        'x2': x_center + avg_w//2,
-                        'y2': row_y_max
-                    }
-                    grid_cells.append(cell)
+                if 0 <= cx - avg_w//2 and cx + avg_w//2 < frame_w:
+                    grid.append({
+                        'x1': cx - avg_w//2,
+                        'y1': y_min,
+                        'x2': cx + avg_w//2,
+                        'y2': y_max
+                    })
         
-        return grid_cells
+        return grid
     
     def draw_detections(self, frame, vehicle_boxes):
-        """Draw parking detection"""
+        """Main detection"""
         h, w = frame.shape[:2]
         
-        # Initialize grid once
-        if not self.grid_initialized:
-            grid = self.create_smart_grid(frame, vehicle_boxes)
+        # Learning phase: collect vehicle positions
+        if not self.learning_complete:
+            if vehicle_boxes:
+                self.learning_frames.extend(vehicle_boxes)
             
-            if grid and len(grid) > 0:
-                self.parking_grid = grid
-                print(f"✓ Created smart grid: {len(grid)} parking spots")
-            
-            self.grid_initialized = True
+            if len(self.learning_frames) >= self.max_learning_frames * 3:  # Got enough data
+                # Build grid from all collected vehicles
+                unique_vehicles = []
+                for v in self.learning_frames:
+                    # Remove duplicates (same position)
+                    is_new = True
+                    for uv in unique_vehicles:
+                        if abs(v[0] - uv[0]) < 30 and abs(v[1] - uv[1]) < 30:
+                            is_new = False
+                            break
+                    if is_new:
+                        unique_vehicles.append(v)
+                
+                self.parking_grid = self.build_parking_grid(unique_vehicles, w, h)
+                self.learning_complete = True
+                
+                if self.parking_grid:
+                    print(f"✓✓✓ Built grid: {len(self.parking_grid)} parking spots")
+                else:
+                    print("⚠ Could not build grid")
+            else:
+                # Still learning
+                cv2.putText(frame, f"Analyzing parking layout: {len(self.learning_frames)} vehicles found", 
+                           (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                
+                for x1, y1, x2, y2 in vehicle_boxes:
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 0), 2)
+                
+                return frame, {'total': 0, 'occupied': 0, 'available': 0}
         
-        # Fallback if no grid
+        # No grid
         if not self.parking_grid:
             for x1, y1, x2, y2 in vehicle_boxes:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
             
-            cv2.putText(frame, "Analyzing parking layout...", 
-                       (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
-            
-            return frame, {
-                'total': 0,
-                'occupied': 0,
-                'available': 0
-            }
+            return frame, {'total': 0, 'occupied': 0, 'available': 0}
         
-        # Check occupancy
+        # Check grid occupancy
         occupied = 0
         
-        for cell in self.parking_grid:
-            is_occupied = False
+        for spot in self.parking_grid:
+            is_occ = False
             
-            # Check if any vehicle overlaps this cell
             for vx1, vy1, vx2, vy2 in vehicle_boxes:
-                # Overlap check
-                x_overlap = max(0, min(vx2, cell['x2']) - max(vx1, cell['x1']))
-                y_overlap = max(0, min(vy2, cell['y2']) - max(vy1, cell['y1']))
-                overlap_area = x_overlap * y_overlap
-                cell_area = (cell['x2'] - cell['x1']) * (cell['y2'] - cell['y1'])
+                # Overlap
+                ox = max(0, min(vx2, spot['x2']) - max(vx1, spot['x1']))
+                oy = max(0, min(vy2, spot['y2']) - max(vy1, spot['y1']))
+                overlap = ox * oy
+                spot_area = (spot['x2'] - spot['x1']) * (spot['y2'] - spot['y1'])
                 
-                if overlap_area > cell_area * 0.3:  # 30% overlap
-                    is_occupied = True
+                if overlap > spot_area * 0.4:
+                    is_occ = True
                     break
             
-            # Draw
-            color = self.occupied_color if is_occupied else self.available_color
-            cv2.rectangle(frame, (cell['x1'], cell['y1']), (cell['x2'], cell['y2']), color, 2)
+            color = self.occupied_color if is_occ else self.available_color
+            cv2.rectangle(frame, (spot['x1'], spot['y1']), (spot['x2'], spot['y2']), color, 2)
             
-            if is_occupied:
+            if is_occ:
                 occupied += 1
         
         total = len(self.parking_grid)
-        available = total - occupied
         
         return frame, {
             'total': total,
             'occupied': occupied,
-            'available': available
+            'available': total - occupied
         }
