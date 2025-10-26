@@ -44,7 +44,10 @@ class DatabaseManager:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS vehicle_detections (
                 id SERIAL PRIMARY KEY,
-                vehicle_count INTEGER NOT NULL,
+                total_spots INTEGER DEFAULT 0,
+                occupied_spots INTEGER NOT NULL,
+                available_spots INTEGER DEFAULT 0,
+                occupancy_rate FLOAT DEFAULT 0.0,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
