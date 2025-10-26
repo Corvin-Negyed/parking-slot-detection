@@ -11,6 +11,8 @@
 
 ---
 
+<div align="center">
+
 ## Developers
 
 <table>
@@ -27,6 +29,8 @@
     </td>
   </tr>
 </table>
+
+</div>
 
 ## Project Overview
 
