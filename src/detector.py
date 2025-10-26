@@ -1,6 +1,6 @@
 """
 Parking detection module using YOLOv8.
-Detects parking lines and spots from video, checks vehicle occupancy.
+Detects vehicles and parking spot occupancy with visual feedback.
 """
 
 import cv2
@@ -21,9 +21,33 @@ class ParkingDetector:
         self.parking_spots = parking_spots or []
         self.occupied_color = (0, 0, 255)  # Red for occupied
         self.available_color = (0, 255, 0)  # Green for available
-        self.learned_spots = {}  # Track learned parking spots from detections
-        self.learning_frames = 0  # Counter for learning phase
+        self.lines_detected = False  # Track if parking lines detected
         
+    def detect_parking_lines(self, frame):
+        """
+        Detect parking lines (white stripes) in the frame
+        
+        Args:
+            frame: Input video frame
+            
+        Returns:
+            List of detected lines
+        """
+        # Convert to grayscale
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # Apply Gaussian blur
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # Edge detection
+        edges = cv2.Canny(blurred, 50, 150)
+        
+        # Detect lines using HoughLinesP
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=100, 
+                               minLineLength=30, maxLineGap=10)
+        
+        return lines if lines is not None else []
+    
     def detect_vehicles(self, frame):
         """
         Detect vehicles in the frame using YOLOv8
