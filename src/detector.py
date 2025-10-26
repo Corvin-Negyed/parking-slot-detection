@@ -1,5 +1,5 @@
 """
-Automatic parking detection without predefined data
+Parking detection with YOLOv8 and smart grid
 """
 
 import cv2
@@ -11,219 +11,172 @@ from src.config import Config
 class ParkingDetector:
     def __init__(self, parking_spots=None):
         """Initialize"""
+        print(f"Loading YOLOv8 model...")
         self.model = YOLO(Config.MODEL_PATH)
-        self.occupied_color = (0, 0, 255)  # Red
-        self.available_color = (0, 255, 0)  # Green
-        self.parking_spots = []
-        self.spots_initialized = False
+        self.occupied_color = (0, 0, 255)
+        self.available_color = (0, 255, 0)
+        self.parking_grid = []
+        self.grid_initialized = False
         
-    def detect_parking_lines(self, frame):
-        """Advanced parking line detection"""
-        h, w = frame.shape[:2]
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
-        # Strong white detection
-        _, white = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY)
-        
-        # Clean up
-        kernel = np.ones((2, 2), np.uint8)
-        white = cv2.morphologyEx(white, cv2.MORPH_CLOSE, kernel)
-        
-        # Edge
-        edges = cv2.Canny(white, 50, 150)
-        
-        # Detect lines with stricter parameters
-        lines = cv2.HoughLinesP(
-            edges,
-            rho=1,
-            theta=np.pi/180,
-            threshold=50,
-            minLineLength=int(h * 0.1),  # At least 10% of height
-            maxLineGap=20
-        )
-        
-        return lines if lines is not None else []
-    
-    def create_spots_from_lines(self, lines, w, h):
-        """Create parking spots from parallel divider lines"""
-        if len(lines) < 2:
-            return []
-        
-        # Analyze line orientations
-        line_data = []
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            length = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-            angle = np.degrees(np.arctan2(y2 - y1, x2 - x1))
-            
-            # Normalize angle to 0-180
-            if angle < 0:
-                angle += 180
-            
-            cx = (x1 + x2) / 2
-            cy = (y1 + y2) / 2
-            
-            # Keep long lines only (parking dividers are prominent)
-            if length > h * 0.08:  # At least 8% of frame height
-                line_data.append({
-                    'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2,
-                    'cx': cx, 'cy': cy,
-                    'angle': angle,
-                    'length': length
-                })
-        
-        if len(line_data) < 2:
-            return []
-        
-        # Find dominant angle (parking lines are parallel)
-        angles = [l['angle'] for l in line_data]
-        hist, bins = np.histogram(angles, bins=36)  # 5-degree bins
-        dominant_idx = np.argmax(hist)
-        dominant_angle = (bins[dominant_idx] + bins[dominant_idx + 1]) / 2
-        
-        # Keep only parallel lines (within ±10 degrees of dominant)
-        parallel_lines = []
-        for l in line_data:
-            if abs(l['angle'] - dominant_angle) < 10:
-                parallel_lines.append(l)
-        
-        if len(parallel_lines) < 2:
-            return []
-        
-        # Sort lines LEFT to RIGHT (by x coordinate)
-        parallel_lines.sort(key=lambda l: l['cx'])
-        
-        spots = []
-        
-        # Create spots between adjacent parallel lines (LEFT and RIGHT neighbors)
-        for i in range(len(parallel_lines) - 1):
-            left_line = parallel_lines[i]
-            right_line = parallel_lines[i + 1]
-            
-            # Check spacing (typical parking spot width)
-            spacing = abs(right_line['cx'] - left_line['cx'])
-            
-            if 35 < spacing < 180:  # Valid parking spot width
-                # Create quadrilateral between the two lines
-                poly = [
-                    (int(left_line['x1']), int(left_line['y1'])),
-                    (int(left_line['x2']), int(left_line['y2'])),
-                    (int(right_line['x2']), int(right_line['y2'])),
-                    (int(right_line['x1']), int(right_line['y1']))
-                ]
-                
-                # Keep only if within frame
-                if all(0 <= x < w and 0 <= y < h for x, y in poly):
-                    spots.append(poly)
-        
-        return spots
-    
     def detect_vehicles(self, frame):
-        """Detect vehicles"""
-        return self.model(frame, conf=0.3, verbose=False)
+        """Detect ALL objects with YOLO"""
+        # Lower confidence to detect more
+        results = self.model(frame, conf=0.2, iou=0.5, verbose=False)
+        return results
     
     def get_vehicle_bboxes(self, results):
-        """Get vehicle boxes"""
+        """Get vehicle bounding boxes"""
         vehicles = []
         
-        if results and len(results) > 0:
+        if results:
             for result in results:
                 if result.boxes is not None:
                     for box in result.boxes:
                         cls = int(box.cls[0])
                         conf = float(box.conf[0])
                         
-                        # Vehicle classes
+                        # Cars(2), motorcycles(3), buses(5), trucks(7)
                         if cls in [2, 3, 5, 7]:
                             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                             vehicles.append((int(x1), int(y1), int(x2), int(y2)))
         
         return vehicles
     
-    def polygon_center(self, poly):
-        """Get polygon center"""
-        xs = [p[0] for p in poly]
-        ys = [p[1] for p in poly]
-        return (sum(xs) // len(xs), sum(ys) // len(ys))
-    
-    def point_in_polygon(self, point, polygon):
-        """Check if point in polygon"""
-        x, y = point
-        n = len(polygon)
-        inside = False
-        
-        p1x, p1y = polygon[0]
-        for i in range(n + 1):
-            p2x, p2y = polygon[i % n]
-            if y > min(p1y, p2y):
-                if y <= max(p1y, p2y):
-                    if x <= max(p1x, p2x):
-                        if p1y != p2y:
-                            xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-                        if p1x == p2x or x <= xinters:
-                            inside = not inside
-            p1x, p1y = p2x, p2y
-        
-        return inside
-    
-    def draw_detections(self, frame, vehicle_boxes):
-        """Main detection function"""
+    def create_smart_grid(self, frame, vehicle_boxes):
+        """Create parking grid based on detected vehicles"""
         h, w = frame.shape[:2]
         
-        # Initialize parking spots from lines
-        if not self.spots_initialized:
-            lines = self.detect_parking_lines(frame)
-            spots = self.create_spots_from_lines(lines, w, h)
-            
-            if spots and len(spots) > 0:
-                self.parking_spots = spots
-                print(f"✓ Detected {len(spots)} parking spots from white lines")
-            
-            self.spots_initialized = True
+        if not vehicle_boxes or len(vehicle_boxes) < 3:
+            return []
         
-        # No spots detected
-        if not self.parking_spots:
-            # Just show vehicles
+        # Analyze vehicle positions to understand parking layout
+        vehicle_data = []
+        for x1, y1, x2, y2 in vehicle_boxes:
+            cx = (x1 + x2) // 2
+            cy = (y1 + y2) // 2
+            vw = x2 - x1
+            vh = y2 - y1
+            vehicle_data.append({'cx': cx, 'cy': cy, 'w': vw, 'h': vh, 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2})
+        
+        # Sort by y position to find rows
+        vehicle_data.sort(key=lambda v: v['cy'])
+        
+        # Find rows (group vehicles with similar y)
+        rows = []
+        current_row = [vehicle_data[0]]
+        
+        for v in vehicle_data[1:]:
+            if abs(v['cy'] - current_row[-1]['cy']) < h * 0.15:  # Same row
+                current_row.append(v)
+            else:
+                if len(current_row) >= 3:  # Valid row needs 3+ vehicles
+                    rows.append(current_row)
+                current_row = [v]
+        
+        if len(current_row) >= 3:
+            rows.append(current_row)
+        
+        if not rows:
+            return []
+        
+        # Create grid cells for each row
+        grid_cells = []
+        
+        for row in rows:
+            # Sort row by x position
+            row.sort(key=lambda v: v['cx'])
+            
+            # Get average vehicle size in this row
+            avg_w = int(np.mean([v['w'] for v in row]))
+            avg_h = int(np.mean([v['h'] for v in row]))
+            
+            # Get row bounds
+            row_y_min = int(np.min([v['y1'] for v in row]))
+            row_y_max = int(np.max([v['y2'] for v in row]))
+            
+            # Find leftmost and rightmost
+            leftmost_x = row[0]['x1']
+            rightmost_x = row[-1]['x2']
+            
+            # Calculate average spacing
+            spacings = []
+            for i in range(len(row) - 1):
+                spacing = row[i+1]['cx'] - row[i]['cx']
+                spacings.append(spacing)
+            
+            avg_spacing = int(np.mean(spacings)) if spacings else avg_w + 20
+            
+            # Generate grid for entire row (including gaps)
+            num_spots = max(len(row) + 3, int((rightmost_x - leftmost_x) / avg_spacing))
+            
+            for i in range(num_spots):
+                x_center = leftmost_x + i * avg_spacing
+                
+                if x_center - avg_w//2 >= 0 and x_center + avg_w//2 < w:
+                    cell = {
+                        'x1': x_center - avg_w//2,
+                        'y1': row_y_min,
+                        'x2': x_center + avg_w//2,
+                        'y2': row_y_max
+                    }
+                    grid_cells.append(cell)
+        
+        return grid_cells
+    
+    def draw_detections(self, frame, vehicle_boxes):
+        """Draw parking detection"""
+        h, w = frame.shape[:2]
+        
+        # Initialize grid once
+        if not self.grid_initialized:
+            grid = self.create_smart_grid(frame, vehicle_boxes)
+            
+            if grid and len(grid) > 0:
+                self.parking_grid = grid
+                print(f"✓ Created smart grid: {len(grid)} parking spots")
+            
+            self.grid_initialized = True
+        
+        # Fallback if no grid
+        if not self.parking_grid:
             for x1, y1, x2, y2 in vehicle_boxes:
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
+            
+            cv2.putText(frame, "Analyzing parking layout...", 
+                       (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
             
             return frame, {
-                'total': len(vehicle_boxes),
-                'occupied': len(vehicle_boxes),
+                'total': 0,
+                'occupied': 0,
                 'available': 0
             }
         
         # Check occupancy
-        mask_occ = np.zeros_like(frame)
-        mask_free = np.zeros_like(frame)
-        
         occupied = 0
         
-        for spot in self.parking_spots:
+        for cell in self.parking_grid:
             is_occupied = False
-            spot_center = self.polygon_center(spot)
             
-            # Check if any vehicle covers this spot
+            # Check if any vehicle overlaps this cell
             for vx1, vy1, vx2, vy2 in vehicle_boxes:
-                car_poly = [(vx1, vy1), (vx1, vy2), (vx2, vy2), (vx2, vy1)]
+                # Overlap check
+                x_overlap = max(0, min(vx2, cell['x2']) - max(vx1, cell['x1']))
+                y_overlap = max(0, min(vy2, cell['y2']) - max(vy1, cell['y1']))
+                overlap_area = x_overlap * y_overlap
+                cell_area = (cell['x2'] - cell['x1']) * (cell['y2'] - cell['y1'])
                 
-                if self.point_in_polygon(spot_center, car_poly):
+                if overlap_area > cell_area * 0.3:  # 30% overlap
                     is_occupied = True
                     break
             
-            poly_arr = np.array(spot, np.int32)
+            # Draw
+            color = self.occupied_color if is_occupied else self.available_color
+            cv2.rectangle(frame, (cell['x1'], cell['y1']), (cell['x2'], cell['y2']), color, 2)
             
             if is_occupied:
                 occupied += 1
-                cv2.fillPoly(mask_occ, [poly_arr], self.occupied_color)
-            else:
-                cv2.fillPoly(mask_free, [poly_arr], self.available_color)
         
-        # Blend
-        frame = cv2.addWeighted(mask_occ, 0.3, frame, 1, 0)
-        frame = cv2.addWeighted(mask_free, 0.3, frame, 1, 0)
-        
-        total = len(self.parking_spots)
+        total = len(self.parking_grid)
         available = total - occupied
         
         return frame, {
