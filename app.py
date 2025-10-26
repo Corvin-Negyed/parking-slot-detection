@@ -126,7 +126,10 @@ def video_feed():
     global current_processor
     
     if not current_processor:
-        return jsonify({'error': 'No video source available'}), 400
+        print("ERROR: No video processor available")
+        return jsonify({'error': 'No video source'}), 400
+    
+    print(f"Starting video feed stream...")
     
     def generate():
         """Generate video frames"""
@@ -135,7 +138,9 @@ def video_feed():
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
         except Exception as e:
-            print(f"Error in video feed: {e}")
+            print(f"Video feed error: {e}")
+            import traceback
+            traceback.print_exc()
     
     return Response(generate(),
                    mimetype='multipart/x-mixed-replace; boundary=frame')
