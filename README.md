@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" alt="SoloVision Logo" width="400"/>
+  <img src="static/logo.png" alt="SoloVision Logo" width="400"/>
 
   ### Smart Parking Management System
   
