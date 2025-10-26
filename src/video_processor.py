@@ -40,7 +40,9 @@ class VideoProcessor:
         print(f"Video OK: {self.width}x{self.height} @ {self.fps}fps")
         
         # Reset for new video
-        self.detector.load_polygons()
+        self.detector.learned_spots = {}
+        self.detector.learning_phase = True
+        self.detector.learning_frames = 0
         self.frame_count = 0
         self.previous_states = {}
         

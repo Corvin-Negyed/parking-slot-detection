@@ -16,7 +16,9 @@ class ParkingDetector:
         self.occupied_color = (0, 0, 255)  # Red
         self.available_color = (0, 255, 255)  # Yellow-green
         self.polygon_data = []
-        self.load_polygons()
+        self.learned_spots = {}  # Learn spots from detections
+        self.learning_phase = True
+        self.learning_frames = 0
         
     def load_polygons(self):
         """Load parking spot polygons from object/poligon.obj"""
@@ -83,8 +85,60 @@ class ParkingDetector:
     def draw_detections(self, frame, vehicle_boxes):
         """Draw parking spots and check occupancy"""
         
-        # If no polygons loaded, show vehicles only
-        if not self.polygon_data:
+        # Learning phase: build parking spot map from first 20 frames
+        if self.learning_phase and self.learning_frames < 20:
+            self.learning_frames += 1
+            
+            for x1, y1, x2, y2 in vehicle_boxes:
+                center_x = (x1 + x2) // 2
+                center_y = (y1 + y2) // 2
+                
+                # Check if near existing spot
+                found = False
+                for spot_id, spot_data in self.learned_spots.items():
+                    spot_cx, spot_cy = spot_data['center']
+                    dist = np.sqrt((center_x - spot_cx)**2 + (center_y - spot_cy)**2)
+                    
+                    if dist < 50:  # Same spot
+                        found = True
+                        # Update with larger bbox if needed
+                        spot_data['x1'] = min(spot_data['x1'], x1)
+                        spot_data['y1'] = min(spot_data['y1'], y1)
+                        spot_data['x2'] = max(spot_data['x2'], x2)
+                        spot_data['y2'] = max(spot_data['y2'], y2)
+                        spot_data['center'] = ((spot_data['x1'] + spot_data['x2']) // 2,
+                                              (spot_data['y1'] + spot_data['y2']) // 2)
+                        break
+                
+                if not found:
+                    # New parking spot
+                    spot_id = len(self.learned_spots)
+                    self.learned_spots[spot_id] = {
+                        'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2,
+                        'center': (center_x, center_y)
+                    }
+            
+            # Show learning progress
+            for x1, y1, x2, y2 in vehicle_boxes:
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 0), 2)
+            
+            cv2.putText(frame, f"Learning... {self.learning_frames}/20", 
+                       (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+            
+            return frame, {
+                'total': len(self.learned_spots),
+                'occupied': len(vehicle_boxes),
+                'available': max(0, len(self.learned_spots) - len(vehicle_boxes))
+            }
+        
+        # End learning phase
+        if self.learning_phase:
+            self.learning_phase = False
+            print(f"Learned {len(self.learned_spots)} parking spots")
+        
+        # Use learned spots
+        if not self.learned_spots:
+            # No spots learned, show vehicles
             for x1, y1, x2, y2 in vehicle_boxes:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), self.occupied_color, 2)
             
@@ -94,56 +148,47 @@ class ParkingDetector:
                 'available': 0
             }
         
-        # Create masks for occupied and available spots
+        # Check occupancy
         mask_occupied = np.zeros_like(frame)
         mask_available = np.zeros_like(frame)
         
-        # Make a copy to track which polygons are free
-        polygon_data_copy = self.polygon_data.copy()
+        occupied_count = 0
         
-        # Check each detected vehicle
-        for detection_bbox in vehicle_boxes:
-            x1, y1, x2, y2 = detection_bbox
+        for spot_id, spot_data in self.learned_spots.items():
+            is_occupied = False
             
-            # Create car polygon (bounding box as polygon)
-            car_polygon = [
-                (int(x1), int(y1)), 
-                (int(x1), int(y2)), 
-                (int(x2), int(y2)), 
-                (int(x2), int(y1))
+            # Create parking spot polygon
+            spot_polygon = [
+                (spot_data['x1'], spot_data['y1']),
+                (spot_data['x1'], spot_data['y2']),
+                (spot_data['x2'], spot_data['y2']),
+                (spot_data['x2'], spot_data['y1'])
             ]
             
-            # Check each parking polygon
-            for parking_polygon in self.polygon_data:
-                if parking_polygon in polygon_data_copy:
-                    # Find center of parking polygon
-                    polygon_center = self.find_polygon_center(parking_polygon)
-                    
-                    # Check if polygon center is inside car bounding box
-                    is_present = self.is_point_in_polygon(polygon_center, car_polygon)
-                    
-                    if is_present:
-                        # Mark as occupied (red)
-                        cv2.fillPoly(mask_occupied, [np.array(parking_polygon)], self.occupied_color)
-                        polygon_data_copy.remove(parking_polygon)
+            # Check if any vehicle overlaps
+            for vx1, vy1, vx2, vy2 in vehicle_boxes:
+                # Simple overlap check
+                if not (vx2 < spot_data['x1'] or vx1 > spot_data['x2'] or
+                       vy2 < spot_data['y1'] or vy1 > spot_data['y2']):
+                    is_occupied = True
+                    break
+            
+            poly_arr = np.array(spot_polygon, np.int32)
+            
+            if is_occupied:
+                occupied_count += 1
+                cv2.fillPoly(mask_occupied, [poly_arr], self.occupied_color)
+            else:
+                cv2.fillPoly(mask_available, [poly_arr], self.available_color)
         
-        # Draw remaining polygons as available (yellow-green)
-        for parking_polygon in polygon_data_copy:
-            cv2.fillPoly(mask_available, [np.array(parking_polygon)], self.available_color)
-        
-        # Blend masks with frame
-        frame = cv2.addWeighted(mask_occupied, 0.2, frame, 1, 0)
-        frame = cv2.addWeighted(mask_available, 0.2, frame, 1, 0)
-        
-        # Calculate statistics
-        total_spots = len(self.polygon_data)
-        occupied_spots = total_spots - len(polygon_data_copy)
-        available_spots = len(polygon_data_copy)
+        # Blend
+        frame = cv2.addWeighted(mask_occupied, 0.25, frame, 1, 0)
+        frame = cv2.addWeighted(mask_available, 0.25, frame, 1, 0)
         
         stats = {
-            'total': total_spots,
-            'occupied': occupied_spots,
-            'available': available_spots
+            'total': len(self.learned_spots),
+            'occupied': occupied_count,
+            'available': len(self.learned_spots) - occupied_count
         }
         
         return frame, stats
