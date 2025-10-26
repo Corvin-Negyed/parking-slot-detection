@@ -32,3 +32,8 @@ class Config:
     UPLOAD_FOLDER = 'uploads'
     ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv'}
 
+    # Polygon/Geometry Configuration
+    POLYGON_REF_WIDTH = int(os.getenv('POLYGON_REF_WIDTH', '1280'))
+    POLYGON_REF_HEIGHT = int(os.getenv('POLYGON_REF_HEIGHT', '720'))
+    POLYGON_IOU_THRESHOLD = float(os.getenv('POLYGON_IOU_THRESHOLD', '0.15'))
+
