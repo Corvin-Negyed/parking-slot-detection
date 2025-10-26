@@ -479,6 +479,27 @@ footer {
     background: white;
 }
 
+.peak-recommendation {
+    background: #f0f7ff;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid #667eea;
+}
+
+.peak-recommendation ul {
+    margin-top: 0.5rem;
+    list-style: none;
+    padding-left: 0;
+}
+
+.peak-recommendation li {
+    padding: 0.5rem;
+    margin: 0.3rem 0;
+    background: white;
+    border-radius: 4px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .upload-options {
