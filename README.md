@@ -161,11 +161,3 @@ parking-slot-detection/
 ├── uploads/              # Uploaded video storage
 └── data/                 # CSV data storage (fallback)
 ```
-
-## Contributing
-
-This is an academic project developed as part of coursework.
-
-## License
-
-This project is for educational purposes.
