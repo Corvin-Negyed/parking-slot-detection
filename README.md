@@ -12,8 +12,21 @@
 ---
 
 ## Developers
-- Umran Er (Neptun: BE59IT)
-- Cem Akan (Neptun: JKVNGM)
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="static/developers/umran_thumb.png" width="80" style="border-radius: 50%;"/><br />
+      <b>Umran Er</b><br />
+      <sub>Neptun: BE59IT</sub>
+    </td>
+    <td align="center">
+      <img src="static/developers/cem_thumb.png" width="80" style="border-radius: 50%;"/><br />
+      <b>Cem Akan</b><br />
+      <sub>Neptun: JKVNGM</sub>
+    </td>
+  </tr>
+</table>
 
 ## Project Overview
 
