@@ -24,6 +24,52 @@ class ParkingDetector:
         self.occupied_color = (0, 0, 255)  # Red for occupied
         self.available_color = (0, 255, 0)  # Green for available
         self.lines_detected = False  # Track if parking lines detected
+        self.polygon_spots = []  # Store polygon-based parking spots
+        
+        # Try to load predefined polygons
+        self.load_polygon_spots()
+    
+    def load_polygon_spots(self, obj_path='object/poligon.obj'):
+        """Load parking spot polygons from pickle file"""
+        try:
+            with open(obj_path, 'rb') as f:
+                self.polygon_spots = pickle.load(f)
+            
+            if self.polygon_spots and len(self.polygon_spots) > 0:
+                print(f"Loaded {len(self.polygon_spots)} parking spots from {obj_path}")
+                self.lines_detected = True
+        except Exception as e:
+            print(f"No polygon file found: {e}")
+            self.polygon_spots = []
+    
+    def find_polygon_center(self, points):
+        """Find center of polygon"""
+        x_coords = [p[0] for p in points]
+        y_coords = [p[1] for p in points]
+        center_x = int(sum(x_coords) / len(points))
+        center_y = int(sum(y_coords) / len(points))
+        return (center_x, center_y)
+    
+    def is_point_in_polygon(self, point, polygon):
+        """Check if point is inside polygon"""
+        x, y = point
+        poly_points = [(px, py) for px, py in polygon]
+        n = len(poly_points)
+        inside = False
+        
+        p1x, p1y = poly_points[0]
+        for i in range(n + 1):
+            p2x, p2y = poly_points[i % n]
+            if y > min(p1y, p2y):
+                if y <= max(p1y, p2y):
+                    if x <= max(p1x, p2x):
+                        if p1y != p2y:
+                            xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or x <= xinters:
+                            inside = not inside
+            p1x, p1y = p2x, p2y
+        
+        return inside
         
     def detect_parking_lines(self, frame):
         """
