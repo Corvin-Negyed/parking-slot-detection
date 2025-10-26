@@ -9,6 +9,7 @@ import base64
 import numpy as np
 from src.detector import ParkingDetector
 from src.database import DatabaseManager
+from src.config import Config
 
 
 class VideoProcessor:
