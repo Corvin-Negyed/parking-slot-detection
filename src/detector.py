@@ -133,23 +133,29 @@ class ParkingDetector:
                 v1 = row[i]
                 v2 = row[i + 1]
                 
-                gap_start = v1[2] + 5  # Right edge + small margin
-                gap_end = v2[0] - 5    # Left edge - small margin
+                gap_start = v1[2]  # Right edge of left car
+                gap_end = v2[0]    # Left edge of right car
                 gap_size = gap_end - gap_start
                 
-                # Minimum gap for parking spot
-                min_gap = avg_width * 0.7
+                # MINIMUM gap must be at least 0.9 * avg_width to count
+                # (if cars are too close, no empty spot)
+                if gap_size < avg_width * 0.9:
+                    continue  # Too small, skip
                 
-                if gap_size > min_gap:
-                    # How many spots fit in this gap?
-                    num_spots = max(1, int(gap_size / avg_width))
-                    spot_width = gap_size // num_spots
-                    
+                # How many car-sized spots fit in this gap?
+                num_spots = int(gap_size / avg_width)
+                
+                if num_spots >= 1:
+                    # Each empty spot is EXACTLY avg_width (same as car width)
                     for j in range(num_spots):
-                        spot_x1 = gap_start + j * spot_width
-                        spot_x2 = spot_x1 + spot_width
+                        spot_x1 = gap_start + j * avg_width
+                        spot_x2 = spot_x1 + avg_width
                         
-                        # Use same y bounds as neighboring vehicles
+                        # Make sure we don't go past the gap
+                        if spot_x2 > gap_end:
+                            break
+                        
+                        # Same height as cars in this row
                         spot_y1 = row_y1
                         spot_y2 = row_y2
                         
