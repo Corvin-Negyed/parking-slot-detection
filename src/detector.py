@@ -30,6 +30,9 @@ class ParkingDetector:
         self.ref_h = Config.POLYGON_REF_HEIGHT
         self.polygons_norm = []
         self.scaled_cache = {'key': None, 'polys': []}
+        # track recent vehicle centers to filter moving vehicles
+        self.prev_centers = []  # list of lists of (x,y)
+        self.max_history = max(2, Config.STATIONARY_FRAMES)
 
         # If polygon usage is disabled, ensure no preloaded polygons
         if not getattr(Config, 'USE_POLYGON_FILE', False):
@@ -261,8 +264,29 @@ class ParkingDetector:
                         if cls in [2, 3, 5, 7] and conf > 0.4:
                             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                             vehicle_boxes.append((int(x1), int(y1), int(x2), int(y2)))
-        
-        return vehicle_boxes
+        # filter moving vehicles by center displacement over last frames
+        centers = [((x1 + x2) // 2, (y1 + y2) // 2) for (x1, y1, x2, y2) in vehicle_boxes]
+        self.prev_centers.append(centers)
+        if len(self.prev_centers) > self.max_history:
+            self.prev_centers.pop(0)
+        filtered = []
+        if len(self.prev_centers) >= self.max_history:
+            # keep vehicles whose centers did not move more than threshold
+            thresh = Config.STATIONARY_PIXELS
+            for idx, c in enumerate(centers):
+                stationary = True
+                for hist in self.prev_centers:
+                    if idx >= len(hist):
+                        continue
+                    cx, cy = hist[idx]
+                    if abs(cx - c[0]) > thresh or abs(cy - c[1]) > thresh:
+                        stationary = False
+                        break
+                if stationary:
+                    filtered.append(vehicle_boxes[idx])
+        else:
+            filtered = vehicle_boxes
+        return filtered
     
     def set_parking_spots(self, spots):
         """

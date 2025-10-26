@@ -38,3 +38,7 @@ class Config:
     POLYGON_IOU_THRESHOLD = float(os.getenv('POLYGON_IOU_THRESHOLD', '0.15'))
     USE_POLYGON_FILE = os.getenv('USE_POLYGON_FILE', 'false').lower() == 'true'
 
+    # Stationary vehicle filtering
+    STATIONARY_FRAMES = int(os.getenv('STATIONARY_FRAMES', '2'))
+    STATIONARY_PIXELS = int(os.getenv('STATIONARY_PIXELS', '12'))
+

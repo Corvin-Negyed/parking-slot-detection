@@ -65,6 +65,9 @@ class VideoProcessor:
         # Reset runtime counters
         self.frame_count = 0
         self.previous_states = {}
+        # reset stationary filter history
+        if hasattr(self.detector, 'prev_centers'):
+            self.detector.prev_centers = []
         
         return True
     
