@@ -135,91 +135,86 @@ class ParkingDetector:
     
     def create_spots_from_lines(self, lines, frame_width, frame_height):
         """
-        Create parking spots from detected lines.
-        Strategy:
-          - find near-horizontal border lines (row top/bottom)
-          - find stall divider lines (slanted ~35-80 or 100-145 deg)
-          - for consecutive dividers, intersect with borders -> quadrilateral polygon
-        Returns list of polygons: [(x,y), ...]
+        Robust divider-only method:
+        1) Pick dominant oblique angle via histogram (exclude near-horizontal/vertical).
+        2) Keep long lines around that angle.
+        3) Project each line onto two horizontal bands y_top/y_bot estimated from endpoints (percentiles).
+        4) Adjacent lines -> trapezoid polygon between y_top/y_bot.
         """
-        if len(lines) < 4:
+        if lines is None or len(lines) < 3:
             return []
 
-        def angle_deg(x1, y1, x2, y2):
-            return abs(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
+        # Collect segments and angles (0..180)
+        segs = [l[0] for l in lines]
+        angles = []
+        lengths = []
+        for x1, y1, x2, y2 in segs:
+            ang = abs(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
+            ang = 180 - ang if ang > 180 else ang
+            angles.append(ang)
+            lengths.append(np.hypot(x2 - x1, y2 - y1))
 
-        def fit_line_mb(x1, y1, x2, y2):
+        # Build histogram in 2 deg bins to find dominant oblique orientation
+        angles_np = np.array(angles)
+        # exclude almost horizontal/vertical
+        mask_oblique = (angles_np > 20) & (angles_np < 160)
+        if mask_oblique.sum() < 3:
+            return []
+        hist, bin_edges = np.histogram(angles_np[mask_oblique], bins=np.arange(0, 181, 2))
+        peak_idx = np.argmax(hist)
+        peak_angle = (bin_edges[peak_idx] + bin_edges[peak_idx + 1]) / 2
+
+        # Filter lines near peak angle and with sufficient length
+        selected = []
+        for (x1, y1, x2, y2), ang, ln in zip(segs, angles, lengths):
+            if abs(ang - peak_angle) <= 6 and ln > 0.18 * frame_height:
+                selected.append((x1, y1, x2, y2))
+        if len(selected) < 3:
+            return []
+
+        # Estimate vertical band of stalls by endpoint y percentiles
+        ys = []
+        for x1, y1, x2, y2 in selected:
+            ys.extend([y1, y2])
+        ys_np = np.array(ys)
+        y_top = int(np.percentile(ys_np, 10))
+        y_bot = int(np.percentile(ys_np, 90))
+        if y_bot - y_top < 0.15 * frame_height:
+            # band too thin -> unreliable
+            return []
+
+        # Utility: line parameters and x at a y
+        def fit_mb(x1, y1, x2, y2):
             if x2 == x1:
                 x2 += 1e-6
             m = (y2 - y1) / (x2 - x1)
             b = y1 - m * x1
             return m, b
 
-        def intersect(m1, b1, m2, b2):
-            if abs(m1 - m2) < 1e-6:
-                return None
-            x = (b2 - b1) / (m1 - m2)
-            y = m1 * x + b1
-            return (int(x), int(y))
-
-        # classify lines
-        horizontals = []
-        dividers = []
-        for (x1, y1, x2, y2) in [l[0] for l in lines]:
-            ang = angle_deg(x1, y1, x2, y2)
-            if ang < 15 or ang > 165:
-                horizontals.append((x1, y1, x2, y2))
-            elif 35 <= ang <= 80 or 100 <= ang <= 145:
-                dividers.append((x1, y1, x2, y2, ang))
-
-        if len(horizontals) < 2 or len(dividers) < 2:
-            return []
-
-        # choose two dominant horizontals by y (row borders)
-        horizontals.sort(key=lambda l: (l[1] + l[3]) / 2)
-        top_line = horizontals[0]
-        bottom_line = horizontals[-1]
-        m_top, b_top = fit_line_mb(*top_line)
-        m_bot, b_bot = fit_line_mb(*bottom_line)
-
-        # reference y between rows
-        y_mid = int((b_top + b_bot) / 2) if abs(m_top - m_bot) < 1e-3 else int(frame_height / 2)
-
-        # sort dividers by x at y_mid projection
         def x_at_y(line, y):
-            x1, y1, x2, y2, _ = line
-            if y2 == y1:
-                return (x1 + x2) / 2
-            m, b = fit_line_mb(x1, y1, x2, y2)
+            x1, y1, x2, y2 = line
+            m, b = fit_mb(x1, y1, x2, y2)
             if abs(m) < 1e-6:
                 return (x1 + x2) / 2
-            x = (y - b) / m
-            return x
+            return (y - b) / m
 
-        dividers.sort(key=lambda ln: x_at_y(ln, y_mid))
+        # Sort by x at mid y
+        y_mid = (y_top + y_bot) // 2
+        selected.sort(key=lambda ln: x_at_y(ln, y_mid))
 
         polygons = []
-        for i in range(len(dividers) - 1):
-            l1 = dividers[i]
-            l2 = dividers[i + 1]
-            # width constraint to avoid huge polygons
-            x_a = x_at_y(l1, y_mid)
-            x_b = x_at_y(l2, y_mid)
-            width = abs(x_b - x_a)
-            if width < 18 or width > 220:
+        for i in range(len(selected) - 1):
+            l1 = selected[i]
+            l2 = selected[i + 1]
+            x1_top = x_at_y(l1, y_top); x2_top = x_at_y(l2, y_top)
+            x1_bot = x_at_y(l1, y_bot); x2_bot = x_at_y(l2, y_bot)
+            # sanity width
+            w_top = abs(x2_top - x1_top); w_bot = abs(x2_bot - x1_bot)
+            w_avg = (w_top + w_bot) / 2
+            if w_avg < max(18, 0.012 * frame_width) or w_avg > 0.18 * frame_width:
                 continue
-
-            # intersections with borders
-            m1, b1 = fit_line_mb(l1[0], l1[1], l1[2], l1[3])
-            m2, b2 = fit_line_mb(l2[0], l2[1], l2[2], l2[3])
-            p1 = intersect(m1, b1, m_top, b_top)
-            p2 = intersect(m2, b2, m_top, b_top)
-            p3 = intersect(m2, b2, m_bot, b_bot)
-            p4 = intersect(m1, b1, m_bot, b_bot)
-            if None in (p1, p2, p3, p4):
-                continue
-            # keep inside frame
-            pts = [p1, p2, p3, p4]
+            pts = [(int(x1_top), y_top), (int(x2_top), y_top), (int(x2_bot), y_bot), (int(x1_bot), y_bot)]
+            # keep inside
             if any(not (0 <= x < frame_width and 0 <= y < frame_height) for x, y in pts):
                 continue
             polygons.append(pts)
