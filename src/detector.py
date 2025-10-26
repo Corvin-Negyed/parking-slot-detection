@@ -1,6 +1,6 @@
 """
 Parking detection module using YOLOv8.
-Detects vehicles and parking spot occupancy with visual feedback.
+Detects parking lines and spots from video, checks vehicle occupancy.
 """
 
 import cv2
