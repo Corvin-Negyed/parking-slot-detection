@@ -28,22 +28,31 @@ class ParkingDetector:
         """Get only stationary (parked) vehicles"""
         # Get current detections
         current = []
+        total_detected = 0
         
         if results:
             for r in results:
                 if r.boxes is not None:
+                    total_detected = len(r.boxes)
+                    print(f"YOLO found {total_detected} objects")
+                    
                     for box in r.boxes:
                         cls = int(box.cls[0])
                         conf = float(box.conf[0])
+                        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                        
+                        print(f"  Object: class={cls}, conf={conf:.2f}, bbox=({int(x1)},{int(y1)},{int(x2)},{int(y2)})")
                         
                         if cls in [2, 3, 5, 7]:
-                            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                             cx = (x1 + x2) / 2
                             cy = (y1 + y2) / 2
                             current.append({
                                 'box': (int(x1), int(y1), int(x2), int(y2)),
                                 'center': (cx, cy)
                             })
+                            print(f"    ✓ Vehicle added")
+        
+        print(f"Current detections: {len(current)} vehicles from {total_detected} total objects")
         
         # Add to history
         self.vehicle_history.append(current)
@@ -158,8 +167,8 @@ class ParkingDetector:
         """Draw occupied and available parking spots"""
         h, w = frame.shape[:2]
         
-        # Get stationary vehicles only
-        stationary = self.get_stationary_vehicles(self.model.predict(frame, conf=0.3, verbose=False))
+        # vehicle_boxes already contains stationary vehicles (from video_processor)
+        stationary = vehicle_boxes
         
         if not stationary:
             cv2.putText(frame, "Waiting for vehicles...", 
