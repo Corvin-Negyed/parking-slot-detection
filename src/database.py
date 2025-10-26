@@ -157,6 +157,40 @@ class DatabaseManager:
             print(f"Error reading from CSV: {e}")
             return []
     
+    def clear_all_data(self):
+        """Clear all historical data"""
+        if self.use_postgres:
+            self._clear_postgres()
+        else:
+            self._clear_csv()
+    
+    def _clear_postgres(self):
+        """Clear PostgreSQL table"""
+        if not self.connection:
+            return
+        
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute("DELETE FROM vehicle_detections")
+            self.connection.commit()
+            cursor.close()
+            print("PostgreSQL history cleared")
+        except Exception as e:
+            print(f"Error clearing PostgreSQL: {e}")
+    
+    def _clear_csv(self):
+        """Clear CSV file"""
+        csv_path = Config.CSV_DATA_PATH
+        
+        try:
+            # Recreate with just header
+            with open(csv_path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['id', 'total_spots', 'occupied_spots', 'available_spots', 'occupancy_rate', 'timestamp'])
+            print("CSV history cleared")
+        except Exception as e:
+            print(f"Error clearing CSV: {e}")
+    
     def close(self):
         """Close database connection"""
         if self.connection:
