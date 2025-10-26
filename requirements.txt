@@ -10,6 +10,9 @@ pillow>=10.0.0
 # Data Processing
 numpy>=1.26.0
 
+# Geometry
+shapely>=2.0.0
+
 # Database
 psycopg2-binary==2.9.9
 
