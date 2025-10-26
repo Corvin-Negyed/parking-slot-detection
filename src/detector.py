@@ -25,6 +25,11 @@ class ParkingDetector:
         self.available_color = (0, 255, 0)  # Green for available
         self.lines_detected = False  # Track if parking lines detected
         self.polygon_spots = []  # Store polygon-based parking spots
+        # reference size for polygons stored in object/poligon.obj
+        self.ref_w = Config.POLYGON_REF_WIDTH
+        self.ref_h = Config.POLYGON_REF_HEIGHT
+        self.polygons_norm = []
+        self.scaled_cache = {'key': None, 'polys': []}
         
         # Try to load predefined polygons
         self.load_polygon_spots()
@@ -33,14 +38,20 @@ class ParkingDetector:
         """Load parking spot polygons from pickle file"""
         try:
             with open(obj_path, 'rb') as f:
-                self.polygon_spots = pickle.load(f)
-            
-            if self.polygon_spots and len(self.polygon_spots) > 0:
-                print(f"Loaded {len(self.polygon_spots)} parking spots from {obj_path}")
+                polys = pickle.load(f) or []
+            # normalize to 0..1 if values look like pixels
+            self.polygons_norm = []
+            for poly in polys:
+                if any(px > 1.5 or py > 1.5 for px, py in poly):
+                    self.polygons_norm.append([(px / self.ref_w, py / self.ref_h) for px, py in poly])
+                else:
+                    self.polygons_norm.append(poly)
+            if self.polygons_norm:
+                print(f"Loaded {len(self.polygons_norm)} polygons from {obj_path}")
                 self.lines_detected = True
         except Exception as e:
             print(f"No polygon file found: {e}")
-            self.polygon_spots = []
+            self.polygons_norm = []
     
     def find_polygon_center(self, points):
         """Find center of polygon"""
@@ -70,6 +81,14 @@ class ParkingDetector:
             p1x, p1y = p2x, p2y
         
         return inside
+    
+    def get_scaled_polygons(self, frame_w, frame_h):
+        key = (frame_w, frame_h)
+        if self.scaled_cache['key'] == key:
+            return self.scaled_cache['polys']
+        scaled = [[(int(px * frame_w), int(py * frame_h)) for px, py in poly] for poly in self.polygons_norm]
+        self.scaled_cache = {'key': key, 'polys': scaled}
+        return scaled
         
     def detect_parking_lines(self, frame):
         """
@@ -280,35 +299,71 @@ class ParkingDetector:
     
     def draw_detections(self, frame, vehicle_boxes):
         """
-        Smart parking detection - show only detected vehicles with stats
+        Draw parking spots using polygons and check occupancy
         
         Args:
             frame: Video frame to draw on
             vehicle_boxes: List of detected vehicle bounding boxes
             
         Returns:
-            Frame with vehicle boxes and statistics
+            Frame with drawn parking spots and statistics
         """
-        vehicle_count = len(vehicle_boxes)
-        
-        # Draw each detected vehicle with red box
-        for i, (x1, y1, x2, y2) in enumerate(vehicle_boxes):
-            # Draw bounding box
-            cv2.rectangle(frame, (x1, y1), (x2, y2), self.occupied_color, 2)
+        # Use polygon spots if available
+        if self.polygons_norm and len(self.polygons_norm) > 0:
+            h, w = frame.shape[:2]
+            polys = self.get_scaled_polygons(w, h)
+            total_spots = len(polys)
+            occupied_count = 0
             
-            # Add vehicle number
-            label = f"V{i+1}"
-            cv2.putText(frame, label, (x1+5, y1+20), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            # Create masks
+            mask_occupied = np.zeros_like(frame)
+            mask_available = np.zeros_like(frame)
+            
+            # Check each polygon
+            for polygon in polys:
+                is_occupied = False
+                
+                # Check if any vehicle center is inside polygon
+                for x1, y1, x2, y2 in vehicle_boxes:
+                    center = ((x1 + x2) // 2, (y1 + y2) // 2)
+                    
+                    if self.is_point_in_polygon(center, polygon):
+                        is_occupied = True
+                        break
+                
+                # Draw polygon
+                poly_array = np.array(polygon, dtype=np.int32)
+                
+                if is_occupied:
+                    occupied_count += 1
+                    cv2.fillPoly(mask_occupied, [poly_array], self.occupied_color)
+                else:
+                    cv2.fillPoly(mask_available, [poly_array], self.available_color)
+            
+            # Blend
+            frame = cv2.addWeighted(mask_occupied, 0.3, frame, 1, 0)
+            frame = cv2.addWeighted(mask_available, 0.3, frame, 1, 0)
+            
+            stats = {
+                'total': total_spots,
+                'occupied': occupied_count,
+                'available': total_spots - occupied_count
+            }
+            
+            return frame, stats
         
-        # Simple stats: just count vehicles
-        stats = {
-            'total': vehicle_count,
-            'occupied': vehicle_count,
-            'available': 0
-        }
-        
-        return frame, stats
+        # Fallback: just show vehicles
+        else:
+            for i, (x1, y1, x2, y2) in enumerate(vehicle_boxes):
+                cv2.rectangle(frame, (x1, y1), (x2, y2), self.occupied_color, 2)
+            
+            stats = {
+                'total': len(vehicle_boxes),
+                'occupied': len(vehicle_boxes),
+                'available': 0
+            }
+            
+            return frame, stats
     
     def _get_spot_center(self, spot):
         """Get center point of a parking spot"""
