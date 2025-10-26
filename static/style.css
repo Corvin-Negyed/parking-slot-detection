@@ -393,9 +393,41 @@ footer {
     margin: 0.5rem 0;
 }
 
-.developers {
+.developers-section {
+    margin-top: 1.5rem;
+}
+
+.developers-title {
     font-size: 0.9rem;
     color: #999;
+    margin-bottom: 1rem;
+}
+
+.developers-grid {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.developer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.developer-photo {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid #667eea;
+    object-fit: cover;
+}
+
+.developer-name {
+    font-size: 0.9rem;
+    color: #666;
+    font-weight: 500;
 }
 
 /* Controls */
