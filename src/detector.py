@@ -230,7 +230,7 @@ class ParkingDetector:
     
     def draw_detections(self, frame, vehicle_boxes):
         """
-        Learn parking spots dynamically from detected vehicles
+        Detect parking spots from lines and check vehicle occupancy
         
         Args:
             frame: Video frame to draw on
@@ -239,57 +239,30 @@ class ParkingDetector:
         Returns:
             Frame with drawn parking spots and statistics
         """
-        self.learning_frames += 1
+        frame_height, frame_width = frame.shape[:2]
         
-        # Learn parking spots from detected vehicles
-        for vehicle_box in vehicle_boxes:
-            x1, y1, x2, y2 = vehicle_box
-            center_x = (x1 + x2) // 2
-            center_y = (y1 + y2) // 2
+        # Detect parking lines and create spots (only once or periodically)
+        if not self.lines_detected or not self.parking_spots:
+            lines = self.detect_parking_lines(frame)
+            detected_spots = self.create_spots_from_lines(lines, frame_width, frame_height)
             
-            # Check if this is near an existing learned spot
-            spot_found = False
-            for spot_id, spot_data in self.learned_spots.items():
-                spot_cx, spot_cy = spot_data['center']
-                distance = np.sqrt((center_x - spot_cx)**2 + (center_y - spot_cy)**2)
-                
-                # If within 60 pixels, it's the same spot
-                if distance < 60:
-                    spot_found = True
-                    # Update spot dimensions with current detection
-                    self.learned_spots[spot_id] = {
-                        'bbox': (x1, y1, x2, y2),
-                        'center': (center_x, center_y),
-                        'width': x2 - x1,
-                        'height': y2 - y1,
-                        'last_seen': self.learning_frames
-                    }
-                    break
-            
-            # Add as new parking spot if not found
-            if not spot_found:
-                new_id = len(self.learned_spots)
-                self.learned_spots[new_id] = {
-                    'bbox': (x1, y1, x2, y2),
-                    'center': (center_x, center_y),
-                    'width': x2 - x1,
-                    'height': y2 - y1,
-                    'last_seen': self.learning_frames
-                }
+            if detected_spots and len(detected_spots) > 0:
+                self.parking_spots = detected_spots
+                self.lines_detected = True
+                print(f"Detected {len(self.parking_spots)} parking spots from lines")
         
-        # Draw all learned parking spots and check occupancy
-        total_spots = len(self.learned_spots)
+        # If no spots detected from lines, use fallback
+        if not self.parking_spots:
+            # Fallback: Use detected vehicles to estimate spots
+            if vehicle_boxes:
+                self.parking_spots = [(x1, y1, x2, y2) for x1, y1, x2, y2 in vehicle_boxes]
+        
+        total_spots = len(self.parking_spots)
         occupied_count = 0
         
-        for spot_id, spot_data in self.learned_spots.items():
-            spot_bbox = spot_data['bbox']
-            is_occupied = False
-            
-            # Check if any current vehicle occupies this spot
-            for vehicle_box in vehicle_boxes:
-                if self._boxes_intersect(spot_bbox, vehicle_box, threshold=0.2):
-                    is_occupied = True
-                    break
+        # Check each parking spot for occupancy
+        for i, spot in enumerate(self.parking_spots):
+            is_occupied = self.check_spot_occupancy(spot, vehicle_boxes)
             
             if is_occupied:
                 occupied_count += 1
@@ -297,12 +270,12 @@ class ParkingDetector:
             else:
                 color = self.available_color
             
-            # Draw parking spot box matching vehicle size/shape
-            x1, y1, x2, y2 = spot_data['bbox']
+            # Draw parking spot
+            x1, y1, x2, y2 = [int(v) for v in spot]
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             
             # Draw spot number
-            cv2.putText(frame, str(spot_id + 1), (x1 + 5, y1 + 20), 
+            cv2.putText(frame, str(i + 1), (x1 + 5, y1 + 20), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         
         available_spots = total_spots - occupied_count
