@@ -21,6 +21,7 @@ const streamStatus = document.getElementById('streamStatus');
 const videoFeed = document.getElementById('videoFeed');
 const stopBtn = document.getElementById('stopBtn');
 const refreshHistoryBtn = document.getElementById('refreshHistoryBtn');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 const refreshAnalyticsBtn = document.getElementById('refreshAnalyticsBtn');
 
 // Stats elements
@@ -293,6 +294,26 @@ function displayHistory(detections, storage) {
 // Refresh history button
 refreshHistoryBtn.addEventListener('click', () => {
     loadHistory();
+});
+
+// Clear history button
+clearHistoryBtn.addEventListener('click', () => {
+    if (confirm('Are you sure you want to clear all history data? This cannot be undone.')) {
+        fetch('/clear_history', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('History cleared successfully!');
+                loadHistory();
+                loadAnalytics();
+            } else {
+                alert('Error: ' + (data.error || 'Failed to clear history'));
+            }
+        })
+        .catch(error => {
+            alert('Error clearing history: ' + error.message);
+        });
+    }
 });
 
 // Load analytics
