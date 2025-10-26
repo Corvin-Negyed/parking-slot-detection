@@ -58,7 +58,7 @@ class VideoProcessor:
         try:
             # Detect vehicles
             results = self.detector.detect_vehicles(frame)
-            vehicle_boxes = self.detector.get_vehicle_bboxes(results)
+            vehicle_boxes = self.detector.get_stationary_vehicles(results)
             
             # Draw parking spots and check occupancy
             processed_frame, stats = self.detector.draw_detections(frame, vehicle_boxes)

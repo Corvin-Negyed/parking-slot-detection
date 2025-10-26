@@ -114,34 +114,42 @@ class ParkingDetector:
             widths = [v[2] - v[0] for v in row]
             avg_width = int(np.mean(widths))
             
-            # Row bounds
+            # Row bounds (same as vehicles in this row)
             row_y1 = int(np.min([v[1] for v in row]))
             row_y2 = int(np.max([v[3] for v in row]))
+            avg_height = int(np.mean([v[3] - v[1] for v in row]))
             
             # Check gaps between consecutive vehicles
             for i in range(len(row) - 1):
                 v1 = row[i]
                 v2 = row[i + 1]
                 
-                gap_start = v1[2]  # Right edge of left vehicle
-                gap_end = v2[0]    # Left edge of right vehicle
+                gap_start = v1[2] + 5  # Right edge + small margin
+                gap_end = v2[0] - 5    # Left edge - small margin
                 gap_size = gap_end - gap_start
                 
-                # If gap is big enough for parking spot(s)
-                if gap_size > avg_width * 0.8:
-                    # How many spots fit?
-                    num_spots = int(gap_size / avg_width)
+                # Minimum gap for parking spot
+                min_gap = avg_width * 0.7
+                
+                if gap_size > min_gap:
+                    # How many spots fit in this gap?
+                    num_spots = max(1, int(gap_size / avg_width))
+                    spot_width = gap_size // num_spots
                     
                     for j in range(num_spots):
-                        spot_x1 = gap_start + j * avg_width
-                        spot_x2 = spot_x1 + avg_width
+                        spot_x1 = gap_start + j * spot_width
+                        spot_x2 = spot_x1 + spot_width
                         
-                        if spot_x2 <= gap_end:
+                        # Use same y bounds as neighboring vehicles
+                        spot_y1 = row_y1
+                        spot_y2 = row_y2
+                        
+                        if 0 <= spot_x1 < frame_w and 0 < spot_x2 <= frame_w:
                             empty_spots.append({
                                 'x1': int(spot_x1),
-                                'y1': row_y1,
+                                'y1': int(spot_y1),
                                 'x2': int(spot_x2),
-                                'y2': row_y2
+                                'y2': int(spot_y2)
                             })
         
         return empty_spots
