@@ -46,6 +46,18 @@ class VideoProcessor:
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
         print(f"Video OK: {self.width}x{self.height} @ {self.fps}fps")
+
+        # Reset detector state for new video
+        # Clear any previously detected/generated spots and caches
+        if hasattr(self.detector, 'lines_detected'):
+            self.detector.lines_detected = False
+        if hasattr(self.detector, 'parking_spots'):
+            self.detector.parking_spots = []
+        if hasattr(self.detector, 'scaled_cache'):
+            self.detector.scaled_cache = {'key': None, 'polys': []}
+        # Reset runtime counters
+        self.frame_count = 0
+        self.previous_states = {}
         
         return True
     
@@ -95,12 +107,28 @@ class VideoProcessor:
         """Draw statistics overlay on frame"""
         # Create semi-transparent overlay
         overlay = frame.copy()
-        cv2.rectangle(overlay, (10, 10), (300, 70), (0, 0, 0), -1)
+        cv2.rectangle(overlay, (10, 10), (320, 140), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
         
-        # Draw vehicle count
-        cv2.putText(frame, f"Vehicles Detected: {stats['occupied']}", 
-                   (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        # Draw stats
+        y_offset = 35
+        cv2.putText(frame, f"Total Spots: {stats['total']}", 
+                   (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        
+        y_offset += 30
+        cv2.putText(frame, f"Occupied: {stats['occupied']}", 
+                   (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        
+        y_offset += 30
+        cv2.putText(frame, f"Available: {stats['available']}", 
+                   (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        
+        # Calculate and show occupancy percentage
+        if stats['total'] > 0:
+            occupancy_pct = (stats['occupied'] / stats['total']) * 100
+            y_offset += 30
+            cv2.putText(frame, f"Occupancy: {occupancy_pct:.1f}%", 
+                       (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
     
     def _check_and_log_changes(self, stats):
         """Check for occupancy changes and log to database"""
