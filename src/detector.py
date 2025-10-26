@@ -4,6 +4,8 @@ Detects vehicles and parking spot occupancy with visual feedback.
 """
 
 import cv2
+import json
+import os
 import numpy as np
 from ultralytics import YOLO
 from src.config import Config
@@ -22,6 +24,30 @@ class ParkingDetector:
         self.occupied_color = (0, 0, 255)  # Red for occupied
         self.available_color = (0, 255, 0)  # Green for available
         self.lines_detected = False  # Track if parking lines detected
+        
+        # Try to load predefined parking spots
+        self.load_parking_spots_from_json()
+    
+    def load_parking_spots_from_json(self, json_path='parking_spots.json'):
+        """Load parking spots from JSON file"""
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, 'r') as f:
+                    data = json.load(f)
+                    if 'spots' in data:
+                        # Convert polygons to bounding boxes
+                        self.parking_spots = []
+                        for spot in data['spots']:
+                            xs = [p[0] for p in spot]
+                            ys = [p[1] for p in spot]
+                            x1, y1 = min(xs), min(ys)
+                            x2, y2 = max(xs), max(ys)
+                            self.parking_spots.append((x1, y1, x2, y2))
+                        
+                        print(f"Loaded {len(self.parking_spots)} parking spots from {json_path}")
+                        self.lines_detected = True
+            except Exception as e:
+                print(f"Error loading parking spots: {e}")
         
     def detect_parking_lines(self, frame):
         """
