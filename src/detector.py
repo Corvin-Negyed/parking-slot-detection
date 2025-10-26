@@ -85,45 +85,50 @@ class ParkingDetector:
     def draw_detections(self, frame, vehicle_boxes):
         """Draw parking spots and check occupancy"""
         
-        # Learning phase: build parking spot map from first 20 frames
-        if self.learning_phase and self.learning_frames < 20:
+        # Learning phase: collect all vehicle positions from first frames
+        if self.learning_phase and self.learning_frames < 30:
             self.learning_frames += 1
             
+            # Collect vehicle positions
             for x1, y1, x2, y2 in vehicle_boxes:
                 center_x = (x1 + x2) // 2
                 center_y = (y1 + y2) // 2
                 
-                # Check if near existing spot
+                # Check if this is a new parking spot location
                 found = False
                 for spot_id, spot_data in self.learned_spots.items():
                     spot_cx, spot_cy = spot_data['center']
                     dist = np.sqrt((center_x - spot_cx)**2 + (center_y - spot_cy)**2)
                     
-                    if dist < 50:  # Same spot
+                    if dist < 60:  # Same parking spot
                         found = True
-                        # Update with larger bbox if needed
+                        # Keep largest bounding box seen
                         spot_data['x1'] = min(spot_data['x1'], x1)
                         spot_data['y1'] = min(spot_data['y1'], y1)
                         spot_data['x2'] = max(spot_data['x2'], x2)
                         spot_data['y2'] = max(spot_data['y2'], y2)
                         spot_data['center'] = ((spot_data['x1'] + spot_data['x2']) // 2,
                                               (spot_data['y1'] + spot_data['y2']) // 2)
+                        spot_data['seen_count'] += 1
                         break
                 
                 if not found:
-                    # New parking spot
+                    # Register new parking spot
                     spot_id = len(self.learned_spots)
                     self.learned_spots[spot_id] = {
                         'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2,
-                        'center': (center_x, center_y)
+                        'center': (center_x, center_y),
+                        'seen_count': 1
                     }
             
-            # Show learning progress
+            # Show learning
             for x1, y1, x2, y2 in vehicle_boxes:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 0), 2)
             
-            cv2.putText(frame, f"Learning... {self.learning_frames}/20", 
-                       (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+            cv2.putText(frame, f"Learning parking spots... {self.learning_frames}/30", 
+                       (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+            cv2.putText(frame, f"Found {len(self.learned_spots)} spots so far", 
+                       (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             
             return frame, {
                 'total': len(self.learned_spots),
@@ -131,10 +136,13 @@ class ParkingDetector:
                 'available': max(0, len(self.learned_spots) - len(vehicle_boxes))
             }
         
-        # End learning phase
+        # Finish learning
         if self.learning_phase:
             self.learning_phase = False
-            print(f"Learned {len(self.learned_spots)} parking spots")
+            # Keep only spots seen multiple times (reduce noise)
+            reliable_spots = {k: v for k, v in self.learned_spots.items() if v['seen_count'] >= 2}
+            self.learned_spots = reliable_spots
+            print(f"✓ Learned {len(self.learned_spots)} reliable parking spots")
         
         # Use learned spots
         if not self.learned_spots:
