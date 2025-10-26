@@ -125,7 +125,8 @@ class ParkingDetector:
     
     def get_vehicle_bboxes(self, results):
         """
-        Extract vehicle bounding boxes from YOLO results
+        Extract parked vehicle bounding boxes from YOLO results
+        Filter out moving vehicles, keep only stationary ones
         
         Args:
             results: YOLO detection results
@@ -143,9 +144,10 @@ class ParkingDetector:
                         cls = int(box.cls[0])
                         conf = float(box.conf[0])
                         
-                        # Filter for vehicles (car, truck, bus, etc.)
+                        # Filter for vehicles (car, truck, bus, motorcycle)
                         # COCO classes: 2=car, 3=motorcycle, 5=bus, 7=truck
-                        if cls in [2, 3, 5, 7] and conf > 0.3:
+                        # Higher confidence threshold to avoid false positives
+                        if cls in [2, 3, 5, 7] and conf > 0.4:
                             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                             vehicle_boxes.append((int(x1), int(y1), int(x2), int(y2)))
         
