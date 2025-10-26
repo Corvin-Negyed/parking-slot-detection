@@ -36,17 +36,79 @@ class ParkingDetector:
         # Convert to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # Apply Gaussian blur
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        # Threshold to get white lines
+        _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+        
+        # Apply morphological operations to clean up
+        kernel = np.ones((3, 3), np.uint8)
+        thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
         
         # Edge detection
-        edges = cv2.Canny(blurred, 50, 150)
+        edges = cv2.Canny(thresh, 50, 150)
         
         # Detect lines using HoughLinesP
-        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=100, 
-                               minLineLength=30, maxLineGap=10)
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=50, 
+                               minLineLength=40, maxLineGap=20)
         
         return lines if lines is not None else []
+    
+    def create_spots_from_lines(self, lines, frame_width, frame_height):
+        """
+        Create parking spots from detected lines
+        Two parallel lines define a parking spot
+        
+        Args:
+            lines: Detected lines from HoughLinesP
+            frame_width: Frame width
+            frame_height: Frame height
+            
+        Returns:
+            List of parking spot polygons
+        """
+        if not lines or len(lines) < 2:
+            return []
+        
+        parking_spots = []
+        
+        # Group lines by orientation (vertical vs horizontal)
+        vertical_lines = []
+        horizontal_lines = []
+        
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            
+            # Calculate angle
+            angle = abs(np.arctan2(y2 - y1, x2 - x1) * 180 / np.pi)
+            
+            # Vertical lines (parking dividers)
+            if 70 < angle < 110:  # Nearly vertical
+                vertical_lines.append((x1, y1, x2, y2))
+            # Horizontal lines (parking row dividers)
+            elif angle < 20 or angle > 160:  # Nearly horizontal
+                horizontal_lines.append((x1, y1, x2, y2))
+        
+        # Sort vertical lines by x coordinate
+        vertical_lines.sort(key=lambda l: (l[0] + l[2]) / 2)
+        
+        # Create spots between consecutive vertical lines
+        for i in range(len(vertical_lines) - 1):
+            x1_1, y1_1, x2_1, y2_1 = vertical_lines[i]
+            x1_2, y1_2, x2_2, y2_2 = vertical_lines[i + 1]
+            
+            # Average x position for each line
+            x_left = int((x1_1 + x2_1) / 2)
+            x_right = int((x1_2 + x2_2) / 2)
+            
+            # Check if lines are close enough to be parking spot dividers (20-200 pixels apart)
+            if 20 < (x_right - x_left) < 200:
+                # Average y positions
+                y_top = int(min(y1_1, y2_1, y1_2, y2_2))
+                y_bottom = int(max(y1_1, y2_1, y1_2, y2_2))
+                
+                # Create parking spot rectangle
+                parking_spots.append((x_left, y_top, x_right, y_bottom))
+        
+        return parking_spots
     
     def detect_vehicles(self, frame):
         """
