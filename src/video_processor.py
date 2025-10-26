@@ -48,21 +48,8 @@ class VideoProcessor:
         
         print(f"Video OK: {self.width}x{self.height} @ {self.fps}fps")
 
-        # Reset detector state for new video
-        # Clear any previously detected/generated spots and caches
-        if hasattr(self.detector, 'lines_detected'):
-            self.detector.lines_detected = False
-        if hasattr(self.detector, 'parking_spots'):
-            self.detector.parking_spots = []
-        if hasattr(self.detector, 'polygons_norm'):
-            # reload polygons only if enabled by config; otherwise keep empty
-            if Config.USE_POLYGON_FILE:
-                self.detector.load_polygon_spots()
-            else:
-                self.detector.polygons_norm = []
-        if hasattr(self.detector, 'scaled_cache'):
-            self.detector.scaled_cache = {'key': None, 'polys': []}
-        # Reset runtime counters
+        # Reset detector for new video
+        self.detector.parking_spots = []
         self.frame_count = 0
         self.previous_states = {}
         # reset stationary filter history
