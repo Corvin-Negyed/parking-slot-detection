@@ -64,35 +64,39 @@ class DatabaseManager:
                 writer = csv.writer(f)
                 writer.writerow(['id', 'total_spots', 'occupied_spots', 'available_spots', 'occupancy_rate', 'timestamp'])
     
-    def save_detection(self, vehicle_count):
-        """Save vehicle detection event to database or CSV"""
+    def save_detection(self, stats):
+        """Save parking statistics to database or CSV"""
         if self.use_postgres:
-            self._save_to_postgres(vehicle_count)
+            self._save_to_postgres(stats)
         else:
-            self._save_to_csv(vehicle_count)
+            self._save_to_csv(stats)
     
-    def _save_to_postgres(self, vehicle_count):
-        """Save detection to PostgreSQL"""
+    def _save_to_postgres(self, stats):
+        """Save statistics to PostgreSQL"""
         if not self.connection:
             return
         
         try:
+            occupancy_rate = (stats['occupied'] / stats['total'] * 100) if stats['total'] > 0 else 0.0
+            
             cursor = self.connection.cursor()
             cursor.execute(
-                "INSERT INTO vehicle_detections (vehicle_count) VALUES (%s)",
-                (vehicle_count,)
+                "INSERT INTO vehicle_detections (total_spots, occupied_spots, available_spots, occupancy_rate) VALUES (%s, %s, %s, %s)",
+                (stats['total'], stats['occupied'], stats['available'], occupancy_rate)
             )
             self.connection.commit()
             cursor.close()
         except Exception as e:
             print(f"Error saving to PostgreSQL: {e}")
     
-    def _save_to_csv(self, vehicle_count):
-        """Save detection to CSV file"""
+    def _save_to_csv(self, stats):
+        """Save statistics to CSV file"""
         csv_path = Config.CSV_DATA_PATH
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         try:
+            occupancy_rate = (stats['occupied'] / stats['total'] * 100) if stats['total'] > 0 else 0.0
+            
             # Get next ID
             next_id = 1
             if os.path.exists(csv_path):
@@ -106,7 +110,7 @@ class DatabaseManager:
             # Append new row
             with open(csv_path, 'a', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow([next_id, vehicle_count, timestamp])
+                writer.writerow([next_id, stats['total'], stats['occupied'], stats['available'], occupancy_rate, timestamp])
         except Exception as e:
             print(f"Error saving to CSV: {e}")
     
