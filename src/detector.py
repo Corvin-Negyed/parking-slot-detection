@@ -19,27 +19,36 @@ class ParkingDetector:
         
     def detect_vehicles(self, frame):
         """Detect vehicles"""
-        results = self.model(frame, verbose=False)
+        # Run YOLO with proper parameters
+        results = self.model(frame, conf=0.25, iou=0.45, verbose=False)
+        print(f"YOLO ran on frame shape: {frame.shape}")
         return results
     
     def get_vehicle_bboxes(self, results):
         """Get vehicle bounding boxes"""
         vehicles = []
+        all_detections = []
         
         if results and len(results) > 0:
             for result in results:
                 if result.boxes is not None:
+                    print(f"Total boxes in result: {len(result.boxes)}")
                     for box in result.boxes:
                         cls = int(box.cls[0])
                         conf = float(box.conf[0])
+                        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                         
-                        # Cars, trucks, buses, motorcycles - LOWER threshold
-                        if cls in [2, 3, 5, 7] and conf > 0.25:
-                            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                        all_detections.append(f"class={cls}, conf={conf:.2f}")
+                        
+                        # Cars(2), motorcycles(3), buses(5), trucks(7)
+                        if cls in [2, 3, 5, 7]:
                             vehicles.append((int(x1), int(y1), int(x2), int(y2)))
-                            print(f"  Vehicle: class={cls}, conf={conf:.2f}, bbox=({int(x1)},{int(y1)},{int(x2)},{int(y2)})")
+                            print(f"  ✓ Vehicle: class={cls}, conf={conf:.2f}")
         
-        print(f"Total vehicles detected: {len(vehicles)}")
+        if all_detections:
+            print(f"All detections: {', '.join(all_detections[:5])}")
+        
+        print(f"==> {len(vehicles)} vehicles")
         return vehicles
     
     def update_parking_areas(self, vehicle_boxes):
