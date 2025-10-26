@@ -142,7 +142,7 @@ class ParkingDetector:
     
     def draw_detections(self, frame, vehicle_boxes):
         """
-        Draw only detected vehicles with bounding boxes
+        Draw detected vehicles and parking grid
         
         Args:
             frame: Video frame to draw on
@@ -151,37 +151,35 @@ class ParkingDetector:
         Returns:
             Frame with drawn detections and statistics
         """
-        vehicle_count = len(vehicle_boxes)
+        frame_height, frame_width = frame.shape[:2]
         
-        # Draw each detected vehicle
-        for i, (x1, y1, x2, y2) in enumerate(vehicle_boxes):
-            # Draw bounding box around vehicle
-            cv2.rectangle(frame, (x1, y1), (x2, y2), self.occupied_color, 2)
+        # Generate parking grid only once
+        if not self.parking_spots:
+            self.parking_spots = self.generate_default_spots(frame_width, frame_height)
+        
+        total_spots = len(self.parking_spots)
+        occupied_count = 0
+        
+        # Check each parking spot and draw
+        for i, spot in enumerate(self.parking_spots):
+            is_occupied = self.check_spot_occupancy(spot, vehicle_boxes)
             
-            # Add vehicle label
-            label = f"Vehicle {i+1}"
-            font_scale = 0.5
-            thickness = 1
+            if is_occupied:
+                occupied_count += 1
+                color = self.occupied_color
+            else:
+                color = self.available_color
             
-            # Get text size for background
-            (text_width, text_height), baseline = cv2.getTextSize(
-                label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness
-            )
-            
-            # Draw semi-transparent background for text
-            cv2.rectangle(frame, 
-                         (x1, y1 - text_height - 8), 
-                         (x1 + text_width + 4, y1), 
-                         self.occupied_color, -1)
-            
-            # Draw text
-            cv2.putText(frame, label, (x1 + 2, y1 - 4), 
-                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness)
+            # Draw thin parking spot boxes
+            x1, y1, x2, y2 = [int(v) for v in spot]
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 1)
+        
+        available_spots = total_spots - occupied_count
         
         stats = {
-            'total': 0,
-            'occupied': vehicle_count,
-            'available': 0
+            'total': total_spots,
+            'occupied': occupied_count,
+            'available': available_spots
         }
         
         return frame, stats
