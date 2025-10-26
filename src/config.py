@@ -22,7 +22,7 @@ class Config:
     FLASK_PORT = int(os.getenv('FLASK_PORT', '5000'))
     
     # Model Configuration
-    MODEL_PATH = os.getenv('MODEL_PATH', 'Models/yolov8m mAp 48/weights/best.pt')
+    MODEL_PATH = os.getenv('MODEL_PATH', 'yolov8n.pt')
     
     # CSV Fallback Configuration
     USE_CSV_FALLBACK = os.getenv('USE_CSV_FALLBACK', 'true').lower() == 'true'
