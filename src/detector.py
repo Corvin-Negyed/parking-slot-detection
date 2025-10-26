@@ -1,10 +1,9 @@
 """
-Parking detection using polygons and YOLOv8
+Parking detection using YOLOv8
 """
 
 import cv2
 import numpy as np
-import pickle
 from ultralytics import YOLO
 from src.config import Config
 
@@ -12,61 +11,20 @@ from src.config import Config
 class ParkingDetector:
     def __init__(self, parking_spots=None):
         """Initialize detector"""
+        print(f"Loading model: {Config.MODEL_PATH}")
         self.model = YOLO(Config.MODEL_PATH)
         self.occupied_color = (0, 0, 255)  # Red
-        self.available_color = (0, 255, 255)  # Yellow-green
-        self.polygon_data = []
-        self.learned_spots = {}  # Learn spots from detections
-        self.learning_phase = True
-        self.learning_frames = 0
+        self.available_color = (0, 255, 0)  # Green
+        self.parking_areas = {}  # Track parking areas
         
-    def load_polygons(self):
-        """Load parking spot polygons from object/poligon.obj"""
-        try:
-            with open("object/poligon.obj", "rb") as f:
-                self.polygon_data = pickle.load(f)
-            print(f"Loaded {len(self.polygon_data)} parking polygons")
-        except:
-            self.polygon_data = []
-            print("No polygon file found")
-    
-    def find_polygon_center(self, points):
-        """Find center of polygon"""
-        x_coords = [p[0] for p in points]
-        y_coords = [p[1] for p in points]
-        center_x = int(sum(x_coords) / len(points))
-        center_y = int(sum(y_coords) / len(points))
-        return (center_x, center_y)
-    
-    def is_point_in_polygon(self, point, polygon):
-        """Check if point is inside polygon"""
-        x, y = point
-        poly_points = [(px, py) for px, py in polygon]
-        n = len(poly_points)
-        inside = False
-        
-        p1x, p1y = poly_points[0]
-        for i in range(n + 1):
-            p2x, p2y = poly_points[i % n]
-            if y > min(p1y, p2y):
-                if y <= max(p1y, p2y):
-                    if x <= max(p1x, p2x):
-                        if p1y != p2y:
-                            xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-                        if p1x == p2x or x <= xinters:
-                            inside = not inside
-            p1x, p1y = p2x, p2y
-        
-        return inside
-    
     def detect_vehicles(self, frame):
-        """Detect vehicles using YOLO"""
+        """Detect vehicles"""
         results = self.model(frame, verbose=False)
         return results
     
     def get_vehicle_bboxes(self, results):
-        """Extract vehicle bounding boxes"""
-        vehicle_boxes = []
+        """Get vehicle bounding boxes"""
+        vehicles = []
         
         if results and len(results) > 0:
             for result in results:
@@ -75,129 +33,125 @@ class ParkingDetector:
                         cls = int(box.cls[0])
                         conf = float(box.conf[0])
                         
-                        # Filter vehicles
-                        if cls in [2, 3, 5, 7] and conf > 0.4:
+                        # Cars, trucks, buses, motorcycles
+                        if cls in [2, 3, 5, 7] and conf > 0.5:
                             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                            vehicle_boxes.append((int(x1), int(y1), int(x2), int(y2)))
+                            vehicles.append((int(x1), int(y1), int(x2), int(y2)))
         
-        return vehicle_boxes
+        print(f"Detected {len(vehicles)} vehicles")
+        return vehicles
+    
+    def update_parking_areas(self, vehicle_boxes):
+        """Update parking area database from detected vehicles"""
+        for vx1, vy1, vx2, vy2 in vehicle_boxes:
+            cx = (vx1 + vx2) // 2
+            cy = (vy1 + vy2) // 2
+            
+            # Find if this matches existing area
+            matched = False
+            for area_id, area in self.parking_areas.items():
+                ax, ay = area['center']
+                dist = np.sqrt((cx - ax)**2 + (cy - ay)**2)
+                
+                if dist < 70:  # Same area
+                    matched = True
+                    # Update area bounds
+                    area['x1'] = min(area['x1'], vx1)
+                    area['y1'] = min(area['y1'], vy1)
+                    area['x2'] = max(area['x2'], vx2)
+                    area['y2'] = max(area['y2'], vy2)
+                    area['center'] = ((area['x1'] + area['x2']) // 2, (area['y1'] + area['y2']) // 2)
+                    area['last_seen'] = 0
+                    break
+            
+            if not matched:
+                # New parking area
+                area_id = len(self.parking_areas)
+                self.parking_areas[area_id] = {
+                    'x1': vx1, 'y1': vy1, 'x2': vx2, 'y2': vy2,
+                    'center': (cx, cy),
+                    'last_seen': 0
+                }
+        
+        # Age out areas not seen recently
+        to_remove = []
+        for area_id, area in self.parking_areas.items():
+            area['last_seen'] += 1
+            if area['last_seen'] > 100:  # Not seen for 100 frames
+                to_remove.append(area_id)
+        
+        for area_id in to_remove:
+            del self.parking_areas[area_id]
     
     def draw_detections(self, frame, vehicle_boxes):
-        """Draw parking spots and check occupancy"""
+        """Draw parking areas and occupancy"""
         
-        # Learning phase: collect all vehicle positions from first frames
-        if self.learning_phase and self.learning_frames < 30:
-            self.learning_frames += 1
-            
-            # Collect vehicle positions
-            for x1, y1, x2, y2 in vehicle_boxes:
-                center_x = (x1 + x2) // 2
-                center_y = (y1 + y2) // 2
-                
-                # Check if this is a new parking spot location
-                found = False
-                for spot_id, spot_data in self.learned_spots.items():
-                    spot_cx, spot_cy = spot_data['center']
-                    dist = np.sqrt((center_x - spot_cx)**2 + (center_y - spot_cy)**2)
-                    
-                    if dist < 60:  # Same parking spot
-                        found = True
-                        # Keep largest bounding box seen
-                        spot_data['x1'] = min(spot_data['x1'], x1)
-                        spot_data['y1'] = min(spot_data['y1'], y1)
-                        spot_data['x2'] = max(spot_data['x2'], x2)
-                        spot_data['y2'] = max(spot_data['y2'], y2)
-                        spot_data['center'] = ((spot_data['x1'] + spot_data['x2']) // 2,
-                                              (spot_data['y1'] + spot_data['y2']) // 2)
-                        spot_data['seen_count'] += 1
-                        break
-                
-                if not found:
-                    # Register new parking spot
-                    spot_id = len(self.learned_spots)
-                    self.learned_spots[spot_id] = {
-                        'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2,
-                        'center': (center_x, center_y),
-                        'seen_count': 1
-                    }
-            
-            # Show learning
+        # Update parking area database
+        self.update_parking_areas(vehicle_boxes)
+        
+        if not self.parking_areas:
+            # No areas yet, just show detected vehicles
             for x1, y1, x2, y2 in vehicle_boxes:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 0), 2)
             
-            cv2.putText(frame, f"Learning parking spots... {self.learning_frames}/30", 
-                       (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-            cv2.putText(frame, f"Found {len(self.learned_spots)} spots so far", 
-                       (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(frame, "Detecting parking areas...", 
+                       (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
             
             return frame, {
-                'total': len(self.learned_spots),
-                'occupied': len(vehicle_boxes),
-                'available': max(0, len(self.learned_spots) - len(vehicle_boxes))
-            }
-        
-        # Finish learning
-        if self.learning_phase:
-            self.learning_phase = False
-            # Keep only spots seen multiple times (reduce noise)
-            reliable_spots = {k: v for k, v in self.learned_spots.items() if v['seen_count'] >= 2}
-            self.learned_spots = reliable_spots
-            print(f"✓ Learned {len(self.learned_spots)} reliable parking spots")
-        
-        # Use learned spots
-        if not self.learned_spots:
-            # No spots learned, show vehicles
-            for x1, y1, x2, y2 in vehicle_boxes:
-                cv2.rectangle(frame, (x1, y1), (x2, y2), self.occupied_color, 2)
-            
-            return frame, {
-                'total': len(vehicle_boxes),
-                'occupied': len(vehicle_boxes),
+                'total': 0,
+                'occupied': 0,
                 'available': 0
             }
         
-        # Check occupancy
+        # Draw all parking areas with occupancy
         mask_occupied = np.zeros_like(frame)
         mask_available = np.zeros_like(frame)
         
         occupied_count = 0
         
-        for spot_id, spot_data in self.learned_spots.items():
+        for area_id, area in self.parking_areas.items():
+            # Check if currently occupied
             is_occupied = False
             
-            # Create parking spot polygon
-            spot_polygon = [
-                (spot_data['x1'], spot_data['y1']),
-                (spot_data['x1'], spot_data['y2']),
-                (spot_data['x2'], spot_data['y2']),
-                (spot_data['x2'], spot_data['y1'])
-            ]
-            
-            # Check if any vehicle overlaps
             for vx1, vy1, vx2, vy2 in vehicle_boxes:
-                # Simple overlap check
-                if not (vx2 < spot_data['x1'] or vx1 > spot_data['x2'] or
-                       vy2 < spot_data['y1'] or vy1 > spot_data['y2']):
-                    is_occupied = True
-                    break
+                # Check overlap
+                if not (vx2 < area['x1'] or vx1 > area['x2'] or
+                       vy2 < area['y1'] or vy1 > area['y2']):
+                    # Significant overlap
+                    overlap_x = min(vx2, area['x2']) - max(vx1, area['x1'])
+                    overlap_y = min(vy2, area['y2']) - max(vy1, area['y1'])
+                    overlap_area = overlap_x * overlap_y
+                    area_size = (area['x2'] - area['x1']) * (area['y2'] - area['y1'])
+                    
+                    if overlap_area > area_size * 0.3:  # 30% overlap
+                        is_occupied = True
+                        break
             
-            poly_arr = np.array(spot_polygon, np.int32)
+            # Draw area
+            x1, y1 = area['x1'], area['y1']
+            x2, y2 = area['x2'], area['y2']
+            
+            pts = np.array([(x1, y1), (x1, y2), (x2, y2), (x2, y1)], np.int32)
             
             if is_occupied:
                 occupied_count += 1
-                cv2.fillPoly(mask_occupied, [poly_arr], self.occupied_color)
+                cv2.fillPoly(mask_occupied, [pts], self.occupied_color)
             else:
-                cv2.fillPoly(mask_available, [poly_arr], self.available_color)
+                cv2.fillPoly(mask_available, [pts], self.available_color)
         
         # Blend
-        frame = cv2.addWeighted(mask_occupied, 0.25, frame, 1, 0)
-        frame = cv2.addWeighted(mask_available, 0.25, frame, 1, 0)
+        frame = cv2.addWeighted(mask_occupied, 0.3, frame, 1, 0)
+        frame = cv2.addWeighted(mask_available, 0.3, frame, 1, 0)
+        
+        total = len(self.parking_areas)
+        available = total - occupied_count
         
         stats = {
-            'total': len(self.learned_spots),
+            'total': total,
             'occupied': occupied_count,
-            'available': len(self.learned_spots) - occupied_count
+            'available': available
         }
         
+        print(f"Stats: Total={total}, Occupied={occupied_count}, Available={available}")
+        
         return frame, stats
-
