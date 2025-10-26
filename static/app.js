@@ -270,16 +270,20 @@ function displayHistory(detections, storage) {
     tableBody.innerHTML = '';
     
     if (detections.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="3" class="no-data">No data available</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="6" class="no-data">No data available</td></tr>';
         return;
     }
     
     // Add rows (already sorted by timestamp DESC from backend)
     detections.forEach(detection => {
         const row = document.createElement('tr');
+        const rate = detection.occupancy_rate ? detection.occupancy_rate.toFixed(1) : '0.0';
         row.innerHTML = `
             <td>${detection.id}</td>
-            <td>${detection.vehicle_count}</td>
+            <td>${detection.total_spots || 0}</td>
+            <td>${detection.occupied || 0}</td>
+            <td>${detection.available || 0}</td>
+            <td>${rate}%</td>
             <td>${detection.timestamp}</td>
         `;
         tableBody.appendChild(row);
