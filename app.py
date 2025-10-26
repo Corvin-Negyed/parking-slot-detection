@@ -73,7 +73,12 @@ def upload_video():
         
         # Create new video processor
         current_processor = VideoProcessor(filepath)
-        current_processor.open_video()
+        success = current_processor.open_video()
+        
+        if not success:
+            return jsonify({'error': 'Failed to open video file'}), 500
+        
+        print(f"Video uploaded and opened: {filename}")
         
         return jsonify({
             'status': 'success',
