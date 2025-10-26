@@ -30,9 +30,12 @@ class ParkingDetector:
         self.ref_h = Config.POLYGON_REF_HEIGHT
         self.polygons_norm = []
         self.scaled_cache = {'key': None, 'polys': []}
-        
-        # Don't load polygons - detect from video dynamically
-    
+
+        # If polygon usage is disabled, ensure no preloaded polygons
+        if not getattr(Config, 'USE_POLYGON_FILE', False):
+            self.polygons_norm = []
+            self.polygon_spots = []
+
     def load_polygon_spots(self, obj_path='object/poligon.obj'):
         """Load parking spot polygons from pickle file"""
         try:
@@ -298,7 +301,7 @@ class ParkingDetector:
     
     def draw_detections(self, frame, vehicle_boxes):
         """
-        Dynamically detect parking spots from video and check occupancy
+        Draw parking spots using polygons and check occupancy
         
         Args:
             frame: Video frame to draw on
@@ -307,40 +310,72 @@ class ParkingDetector:
         Returns:
             Frame with drawn parking spots and statistics
         """
+        # Use polygon spots if available and enabled
+        if Config.USE_POLYGON_FILE and self.polygons_norm and len(self.polygons_norm) > 0:
+            h, w = frame.shape[:2]
+            polys = self.get_scaled_polygons(w, h)
+            total_spots = len(polys)
+            occupied_count = 0
+            
+            # Create masks
+            mask_occupied = np.zeros_like(frame)
+            mask_available = np.zeros_like(frame)
+            
+            # Check each polygon
+            for polygon in polys:
+                is_occupied = False
+                
+                # Check if any vehicle center is inside polygon
+                for x1, y1, x2, y2 in vehicle_boxes:
+                    center = ((x1 + x2) // 2, (y1 + y2) // 2)
+                    
+                    if self.is_point_in_polygon(center, polygon):
+                        is_occupied = True
+                        break
+                
+                # Draw polygon
+                poly_array = np.array(polygon, dtype=np.int32)
+                
+                if is_occupied:
+                    occupied_count += 1
+                    cv2.fillPoly(mask_occupied, [poly_array], self.occupied_color)
+                else:
+                    cv2.fillPoly(mask_available, [poly_array], self.available_color)
+            
+            # Blend
+            frame = cv2.addWeighted(mask_occupied, 0.3, frame, 1, 0)
+            frame = cv2.addWeighted(mask_available, 0.3, frame, 1, 0)
+            
+            stats = {
+                'total': total_spots,
+                'occupied': occupied_count,
+                'available': total_spots - occupied_count
+            }
+            
+            return frame, stats
+        
+        # Else detect from lines dynamically per video
         h, w = frame.shape[:2]
-        
-        # Detect parking lines and create spots only once per video
-        if not self.lines_detected:
-            lines = self.detect_parking_lines(frame)
-            spots = self.create_spots_from_lines(lines, w, h)
-            
-            if spots and len(spots) > 0:
-                self.parking_spots = spots
-                self.lines_detected = True
-                print(f"Detected {len(spots)} parking spots from lines in this video")
-        
-        # If spots found, use them
-        if self.parking_spots and len(self.parking_spots) > 0:
-            total_spots = len(self.parking_spots)
+        lines = self.detect_parking_lines(frame)
+        spots = self.create_spots_from_lines(lines, w, h)
+        if spots:
+            self.parking_spots = spots
+            total_spots = len(spots)
             occ = 0
-            
-            for spot in self.parking_spots:
+            for spot in spots:
                 if self.check_spot_occupancy(spot, vehicle_boxes):
                     occ += 1
                     color = self.occupied_color
                 else:
                     color = self.available_color
-                
                 x1, y1, x2, y2 = [int(v) for v in spot]
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            
             stats = {'total': total_spots, 'occupied': occ, 'available': total_spots - occ}
             return frame, stats
         
-        # Fallback: just show detected vehicles
+        # Final fallback: only vehicles
         for (x1, y1, x2, y2) in vehicle_boxes:
             cv2.rectangle(frame, (x1, y1), (x2, y2), self.occupied_color, 2)
-        
         n = len(vehicle_boxes)
         return frame, {'total': n, 'occupied': n, 'available': 0}
     
