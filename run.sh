@@ -14,7 +14,7 @@ fi
 source .venv/bin/activate
 
 # Check if dependencies are installed
-if ! python -c "import flask" 2>/dev/null; then
+if ! python -c "import flask; import shapely" 2>/dev/null; then
     echo "Installing dependencies..."
     pip install -r requirements.txt
 fi
