@@ -437,6 +437,11 @@ footer {
     align-items: center;
 }
 
+.history-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
 /* Analytics Section */
 .analytics-container {
     display: flex;
