@@ -181,7 +181,19 @@
     <footer>
         <div class="footer-content">
             <p>&copy; 2025 SoloVision - Smart Parking Management System</p>
-            <p class="developers">Developed by Umran Er and Cem Akan</p>
+            <div class="developers-section">
+                <p class="developers-title">Developed by</p>
+                <div class="developers-grid">
+                    <div class="developer">
+                        <img src="{{ url_for('static', filename='developers/umran_thumb.png') }}" alt="Umran Er" class="developer-photo">
+                        <span class="developer-name">Umran Er</span>
+                    </div>
+                    <div class="developer">
+                        <img src="{{ url_for('static', filename='developers/cem_thumb.png') }}" alt="Cem Akan" class="developer-photo">
+                        <span class="developer-name">Cem Akan</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </footer>
     
