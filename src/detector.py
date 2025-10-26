@@ -65,7 +65,7 @@ class ParkingDetector:
         Returns:
             List of parking spot polygons
         """
-        if not lines or len(lines) < 2:
+        if len(lines) < 2:
             return []
         
         parking_spots = []
@@ -122,7 +122,7 @@ class ParkingDetector:
         """
         results = self.model(frame, verbose=False)
         return results
-    
+
     def get_vehicle_bboxes(self, results):
         """
         Extract parked vehicle bounding boxes from YOLO results
