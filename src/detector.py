@@ -1,139 +1,69 @@
 """
-Parking detection module using YOLOv8.
-Detects white parking lines and determines occupancy.
+Parking detection using polygons and YOLOv8
 """
 
 import cv2
 import numpy as np
+import pickle
 from ultralytics import YOLO
-from shapely.geometry import Polygon as ShapelyPolygon
 from src.config import Config
 
 
 class ParkingDetector:
     def __init__(self, parking_spots=None):
-        """Initialize parking detector with YOLOv8 model"""
+        """Initialize detector"""
         self.model = YOLO(Config.MODEL_PATH)
         self.occupied_color = (0, 0, 255)  # Red
-        self.available_color = (0, 255, 0)  # Green
-        self.parking_spots = parking_spots or []
+        self.available_color = (0, 255, 255)  # Yellow-green
+        self.polygon_data = []
+        self.load_polygons()
         
-    def detect_white_lines(self, frame):
-        """Detect small white parking lines"""
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
-        # Strong threshold for white lines only
-        _, binary = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY)
-        
-        # Clean up
-        kernel = np.ones((2, 2), np.uint8)
-        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-        binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
-        
-        # Detect edges
-        edges = cv2.Canny(binary, 100, 200)
-        
-        # Detect lines - focus on short white lines (parking dividers)
-        lines = cv2.HoughLinesP(
-            edges,
-            rho=1,
-            theta=np.pi/180,
-            threshold=30,
-            minLineLength=20,
-            maxLineGap=5
-        )
-        
-        return lines if lines is not None else []
+    def load_polygons(self):
+        """Load parking spot polygons from object/poligon.obj"""
+        try:
+            with open("object/poligon.obj", "rb") as f:
+                self.polygon_data = pickle.load(f)
+            print(f"Loaded {len(self.polygon_data)} parking polygons")
+        except:
+            self.polygon_data = []
+            print("No polygon file found")
     
-    def create_parking_spots(self, lines, frame_width, frame_height):
-        """Create parking spots from white line pairs"""
-        if len(lines) < 2:
-            return []
+    def find_polygon_center(self, points):
+        """Find center of polygon"""
+        x_coords = [p[0] for p in points]
+        y_coords = [p[1] for p in points]
+        center_x = int(sum(x_coords) / len(points))
+        center_y = int(sum(y_coords) / len(points))
+        return (center_x, center_y)
+    
+    def is_point_in_polygon(self, point, polygon):
+        """Check if point is inside polygon"""
+        x, y = point
+        poly_points = [(px, py) for px, py in polygon]
+        n = len(poly_points)
+        inside = False
         
-        # Extract line segments
-        segments = [line[0] for line in lines]
+        p1x, p1y = poly_points[0]
+        for i in range(n + 1):
+            p2x, p2y = poly_points[i % n]
+            if y > min(p1y, p2y):
+                if y <= max(p1y, p2y):
+                    if x <= max(p1x, p2x):
+                        if p1y != p2y:
+                            xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or x <= xinters:
+                            inside = not inside
+            p1x, p1y = p2x, p2y
         
-        # Calculate line properties
-        line_data = []
-        for x1, y1, x2, y2 in segments:
-            length = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-            angle = np.degrees(np.arctan2(y2 - y1, x2 - x1))
-            center_x = (x1 + x2) / 2
-            center_y = (y1 + y2) / 2
-            
-            # Keep short white lines (typical parking dividers)
-            if 15 < length < 150:
-                line_data.append({
-                    'coords': (x1, y1, x2, y2),
-                    'angle': angle,
-                    'center': (center_x, center_y),
-                    'length': length
-                })
-        
-        if len(line_data) < 2:
-            return []
-        
-        # Find dominant angle (parking line orientation)
-        angles = [ld['angle'] for ld in line_data]
-        angle_hist, angle_bins = np.histogram(angles, bins=18)
-        dominant_bin = np.argmax(angle_hist)
-        dominant_angle = (angle_bins[dominant_bin] + angle_bins[dominant_bin + 1]) / 2
-        
-        # Filter lines with similar angle
-        parallel_lines = []
-        for ld in line_data:
-            if abs(ld['angle'] - dominant_angle) < 15:
-                parallel_lines.append(ld)
-        
-        if len(parallel_lines) < 2:
-            return []
-        
-        # Sort by center position (perpendicular to line angle)
-        # For angled lines, sort by projected position
-        if abs(dominant_angle) < 45:  # More horizontal
-            parallel_lines.sort(key=lambda ld: ld['center'][1])
-        else:  # More vertical
-            parallel_lines.sort(key=lambda ld: ld['center'][0])
-        
-        # Create parking spots between consecutive line pairs
-        parking_spots = []
-        for i in range(len(parallel_lines) - 1):
-            line1 = parallel_lines[i]['coords']
-            line2 = parallel_lines[i + 1]['coords']
-            
-            x1_a, y1_a, x2_a, y2_a = line1
-            x1_b, y1_b, x2_b, y2_b = line2
-            
-            # Calculate distance between lines
-            dist = np.sqrt((parallel_lines[i]['center'][0] - parallel_lines[i + 1]['center'][0])**2 +
-                          (parallel_lines[i]['center'][1] - parallel_lines[i + 1]['center'][1])**2)
-            
-            # Typical parking spot width: 40-180 pixels
-            if 40 < dist < 180:
-                # Create polygon (quadrilateral) from the two lines
-                polygon = [
-                    (int(x1_a), int(y1_a)),
-                    (int(x2_a), int(y2_a)),
-                    (int(x2_b), int(y2_b)),
-                    (int(x1_b), int(y1_b))
-                ]
-                
-                # Verify polygon is within frame
-                valid = all(0 <= x < frame_width and 0 <= y < frame_height 
-                          for x, y in polygon)
-                
-                if valid:
-                    parking_spots.append(polygon)
-        
-        return parking_spots
+        return inside
     
     def detect_vehicles(self, frame):
-        """Detect vehicles using YOLOv8"""
+        """Detect vehicles using YOLO"""
         results = self.model(frame, verbose=False)
         return results
     
     def get_vehicle_bboxes(self, results):
-        """Extract stationary vehicle bounding boxes"""
+        """Extract vehicle bounding boxes"""
         vehicle_boxes = []
         
         if results and len(results) > 0:
@@ -143,44 +73,18 @@ class ParkingDetector:
                         cls = int(box.cls[0])
                         conf = float(box.conf[0])
                         
-                        # Cars, motorcycles, buses, trucks
-                        if cls in [2, 3, 5, 7] and conf > 0.5:
+                        # Filter vehicles
+                        if cls in [2, 3, 5, 7] and conf > 0.4:
                             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                             vehicle_boxes.append((int(x1), int(y1), int(x2), int(y2)))
         
         return vehicle_boxes
     
-    def check_occupancy_iou(self, polygon, vehicle_bbox):
-        """Check if vehicle overlaps with parking spot using IoU"""
-        try:
-            poly = ShapelyPolygon(polygon)
-            x1, y1, x2, y2 = vehicle_bbox
-            bbox_poly = ShapelyPolygon([(x1, y1), (x1, y2), (x2, y2), (x2, y1)])
-            
-            intersection = poly.intersection(bbox_poly).area
-            union = poly.union(bbox_poly).area
-            
-            iou = intersection / union if union > 0 else 0
-            return iou >= Config.POLYGON_IOU_THRESHOLD
-            
-        except Exception:
-            return False
-    
     def draw_detections(self, frame, vehicle_boxes):
         """Draw parking spots and check occupancy"""
-        h, w = frame.shape[:2]
         
-        # Detect white lines and create parking spots
-        if not self.parking_spots:
-            lines = self.detect_white_lines(frame)
-            spots = self.create_parking_spots(lines, w, h)
-            
-            if spots:
-                self.parking_spots = spots
-                print(f"Detected {len(spots)} parking spots from white lines")
-        
-        # If no spots detected, fallback to showing vehicles only
-        if not self.parking_spots:
+        # If no polygons loaded, show vehicles only
+        if not self.polygon_data:
             for x1, y1, x2, y2 in vehicle_boxes:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), self.occupied_color, 2)
             
@@ -190,40 +94,55 @@ class ParkingDetector:
                 'available': 0
             }
         
-        # Check each parking spot for occupancy
-        total_spots = len(self.parking_spots)
-        occupied_count = 0
-        
+        # Create masks for occupied and available spots
         mask_occupied = np.zeros_like(frame)
         mask_available = np.zeros_like(frame)
         
-        for polygon in self.parking_spots:
-            is_occupied = False
-            
-            # Check if any vehicle overlaps with this spot
-            for vehicle_bbox in vehicle_boxes:
-                if self.check_occupancy_iou(polygon, vehicle_bbox):
-                    is_occupied = True
-                    break
-            
-            # Draw polygon
-            poly_array = np.array(polygon, dtype=np.int32)
-            
-            if is_occupied:
-                occupied_count += 1
-                cv2.fillPoly(mask_occupied, [poly_array], self.occupied_color)
-            else:
-                cv2.fillPoly(mask_available, [poly_array], self.available_color)
+        # Make a copy to track which polygons are free
+        polygon_data_copy = self.polygon_data.copy()
         
-        # Blend masks with original frame
-        frame = cv2.addWeighted(mask_occupied, 0.3, frame, 1, 0)
-        frame = cv2.addWeighted(mask_available, 0.3, frame, 1, 0)
+        # Check each detected vehicle
+        for detection_bbox in vehicle_boxes:
+            x1, y1, x2, y2 = detection_bbox
+            
+            # Create car polygon (bounding box as polygon)
+            car_polygon = [
+                (int(x1), int(y1)), 
+                (int(x1), int(y2)), 
+                (int(x2), int(y2)), 
+                (int(x2), int(y1))
+            ]
+            
+            # Check each parking polygon
+            for parking_polygon in self.polygon_data:
+                if parking_polygon in polygon_data_copy:
+                    # Find center of parking polygon
+                    polygon_center = self.find_polygon_center(parking_polygon)
+                    
+                    # Check if polygon center is inside car bounding box
+                    is_present = self.is_point_in_polygon(polygon_center, car_polygon)
+                    
+                    if is_present:
+                        # Mark as occupied (red)
+                        cv2.fillPoly(mask_occupied, [np.array(parking_polygon)], self.occupied_color)
+                        polygon_data_copy.remove(parking_polygon)
         
-        available_spots = total_spots - occupied_count
+        # Draw remaining polygons as available (yellow-green)
+        for parking_polygon in polygon_data_copy:
+            cv2.fillPoly(mask_available, [np.array(parking_polygon)], self.available_color)
+        
+        # Blend masks with frame
+        frame = cv2.addWeighted(mask_occupied, 0.2, frame, 1, 0)
+        frame = cv2.addWeighted(mask_available, 0.2, frame, 1, 0)
+        
+        # Calculate statistics
+        total_spots = len(self.polygon_data)
+        occupied_spots = total_spots - len(polygon_data_copy)
+        available_spots = len(polygon_data_copy)
         
         stats = {
             'total': total_spots,
-            'occupied': occupied_count,
+            'occupied': occupied_spots,
             'available': available_spots
         }
         
