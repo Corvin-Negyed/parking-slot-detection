@@ -66,23 +66,30 @@ class VideoProcessor:
         Returns:
             Processed frame and statistics
         """
-        # Detect vehicles
-        results = self.detector.detect_vehicles(frame)
-        vehicle_boxes = self.detector.get_vehicle_bboxes(results)
-        
-        # Draw detected vehicles and get statistics
-        processed_frame, stats = self.detector.draw_detections(frame, vehicle_boxes)
-        
-        # Update current stats for API access
-        self.current_stats = stats
-        
-        # Add statistics overlay
-        self._draw_stats_overlay(processed_frame, stats)
-        
-        # Check for state changes and log to database
-        self._check_and_log_changes(stats)
-        
-        return processed_frame, stats
+        try:
+            # Detect vehicles
+            results = self.detector.detect_vehicles(frame)
+            vehicle_boxes = self.detector.get_vehicle_bboxes(results)
+            
+            # Draw detected vehicles and get statistics
+            processed_frame, stats = self.detector.draw_detections(frame, vehicle_boxes)
+            
+            # Update current stats for API access
+            self.current_stats = stats
+            
+            # Add statistics overlay
+            self._draw_stats_overlay(processed_frame, stats)
+            
+            # Check for state changes and log to database
+            self._check_and_log_changes(stats)
+            
+            return processed_frame, stats
+            
+        except Exception as e:
+            print(f"Frame processing error: {e}")
+            import traceback
+            traceback.print_exc()
+            return frame, self.current_stats
     
     def _draw_stats_overlay(self, frame, stats):
         """Draw statistics overlay on frame"""
