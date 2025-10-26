@@ -160,17 +160,24 @@ def get_history():
         formatted_detections = []
         for detection in detections:
             if db.use_postgres:
+                # PostgreSQL: (id, total, occupied, available, rate, timestamp)
                 formatted_detections.append({
                     'id': detection[0],
-                    'vehicle_count': detection[1],
-                    'timestamp': str(detection[2])
+                    'total_spots': detection[1],
+                    'occupied': detection[2],
+                    'available': detection[3],
+                    'occupancy_rate': float(detection[4]),
+                    'timestamp': str(detection[5])
                 })
             else:
-                # CSV format
+                # CSV format: same structure
                 formatted_detections.append({
                     'id': detection[0],
-                    'vehicle_count': detection[1],
-                    'timestamp': detection[2]
+                    'total_spots': detection[1],
+                    'occupied': detection[2],
+                    'available': detection[3],
+                    'occupancy_rate': float(detection[4]),
+                    'timestamp': detection[5]
                 })
         
         db.close()
