@@ -40,7 +40,7 @@ class VideoProcessor:
         print(f"Video OK: {self.width}x{self.height} @ {self.fps}fps")
         
         # Reset for new video
-        self.detector.parking_areas = {}
+        self.detector.polygon_data = self.detector.load_polygons()
         self.frame_count = 0
         self.previous_states = {}
         
