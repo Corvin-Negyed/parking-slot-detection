@@ -135,61 +135,96 @@ class ParkingDetector:
     
     def create_spots_from_lines(self, lines, frame_width, frame_height):
         """
-        Create parking spots from detected lines
-        Two parallel lines define a parking spot
-        
-        Args:
-            lines: Detected lines from HoughLinesP
-            frame_width: Frame width
-            frame_height: Frame height
-            
-        Returns:
-            List of parking spot polygons
+        Create parking spots from detected lines.
+        Strategy:
+          - find near-horizontal border lines (row top/bottom)
+          - find stall divider lines (slanted ~35-80 or 100-145 deg)
+          - for consecutive dividers, intersect with borders -> quadrilateral polygon
+        Returns list of polygons: [(x,y), ...]
         """
-        if len(lines) < 2:
+        if len(lines) < 4:
             return []
-        
-        parking_spots = []
-        
-        # Group lines by orientation (vertical vs horizontal)
-        vertical_lines = []
-        horizontal_lines = []
-        
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            
-            # Calculate angle
-            angle = abs(np.arctan2(y2 - y1, x2 - x1) * 180 / np.pi)
-            
-            # Vertical lines (parking dividers)
-            if 70 < angle < 110:  # Nearly vertical
-                vertical_lines.append((x1, y1, x2, y2))
-            # Horizontal lines (parking row dividers)
-            elif angle < 20 or angle > 160:  # Nearly horizontal
-                horizontal_lines.append((x1, y1, x2, y2))
-        
-        # Sort vertical lines by x coordinate
-        vertical_lines.sort(key=lambda l: (l[0] + l[2]) / 2)
-        
-        # Create spots between consecutive vertical lines
-        for i in range(len(vertical_lines) - 1):
-            x1_1, y1_1, x2_1, y2_1 = vertical_lines[i]
-            x1_2, y1_2, x2_2, y2_2 = vertical_lines[i + 1]
-            
-            # Average x position for each line
-            x_left = int((x1_1 + x2_1) / 2)
-            x_right = int((x1_2 + x2_2) / 2)
-            
-            # Check if lines are close enough to be parking spot dividers (20-200 pixels apart)
-            if 20 < (x_right - x_left) < 200:
-                # Average y positions
-                y_top = int(min(y1_1, y2_1, y1_2, y2_2))
-                y_bottom = int(max(y1_1, y2_1, y1_2, y2_2))
-                
-                # Create parking spot rectangle
-                parking_spots.append((x_left, y_top, x_right, y_bottom))
-        
-        return parking_spots
+
+        def angle_deg(x1, y1, x2, y2):
+            return abs(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
+
+        def fit_line_mb(x1, y1, x2, y2):
+            if x2 == x1:
+                x2 += 1e-6
+            m = (y2 - y1) / (x2 - x1)
+            b = y1 - m * x1
+            return m, b
+
+        def intersect(m1, b1, m2, b2):
+            if abs(m1 - m2) < 1e-6:
+                return None
+            x = (b2 - b1) / (m1 - m2)
+            y = m1 * x + b1
+            return (int(x), int(y))
+
+        # classify lines
+        horizontals = []
+        dividers = []
+        for (x1, y1, x2, y2) in [l[0] for l in lines]:
+            ang = angle_deg(x1, y1, x2, y2)
+            if ang < 15 or ang > 165:
+                horizontals.append((x1, y1, x2, y2))
+            elif 35 <= ang <= 80 or 100 <= ang <= 145:
+                dividers.append((x1, y1, x2, y2, ang))
+
+        if len(horizontals) < 2 or len(dividers) < 2:
+            return []
+
+        # choose two dominant horizontals by y (row borders)
+        horizontals.sort(key=lambda l: (l[1] + l[3]) / 2)
+        top_line = horizontals[0]
+        bottom_line = horizontals[-1]
+        m_top, b_top = fit_line_mb(*top_line)
+        m_bot, b_bot = fit_line_mb(*bottom_line)
+
+        # reference y between rows
+        y_mid = int((b_top + b_bot) / 2) if abs(m_top - m_bot) < 1e-3 else int(frame_height / 2)
+
+        # sort dividers by x at y_mid projection
+        def x_at_y(line, y):
+            x1, y1, x2, y2, _ = line
+            if y2 == y1:
+                return (x1 + x2) / 2
+            m, b = fit_line_mb(x1, y1, x2, y2)
+            if abs(m) < 1e-6:
+                return (x1 + x2) / 2
+            x = (y - b) / m
+            return x
+
+        dividers.sort(key=lambda ln: x_at_y(ln, y_mid))
+
+        polygons = []
+        for i in range(len(dividers) - 1):
+            l1 = dividers[i]
+            l2 = dividers[i + 1]
+            # width constraint to avoid huge polygons
+            x_a = x_at_y(l1, y_mid)
+            x_b = x_at_y(l2, y_mid)
+            width = abs(x_b - x_a)
+            if width < 18 or width > 220:
+                continue
+
+            # intersections with borders
+            m1, b1 = fit_line_mb(l1[0], l1[1], l1[2], l1[3])
+            m2, b2 = fit_line_mb(l2[0], l2[1], l2[2], l2[3])
+            p1 = intersect(m1, b1, m_top, b_top)
+            p2 = intersect(m2, b2, m_top, b_top)
+            p3 = intersect(m2, b2, m_bot, b_bot)
+            p4 = intersect(m1, b1, m_bot, b_bot)
+            if None in (p1, p2, p3, p4):
+                continue
+            # keep inside frame
+            pts = [p1, p2, p3, p4]
+            if any(not (0 <= x < frame_width and 0 <= y < frame_height) for x, y in pts):
+                continue
+            polygons.append(pts)
+
+        return polygons
     
     def detect_vehicles(self, frame):
         """
@@ -367,19 +402,26 @@ class ParkingDetector:
         # Else detect from lines dynamically per video
         h, w = frame.shape[:2]
         lines = self.detect_parking_lines(frame)
-        spots = self.create_spots_from_lines(lines, w, h)
-        if spots:
-            self.parking_spots = spots
-            total_spots = len(spots)
+        polygons = self.create_spots_from_lines(lines, w, h)
+        if polygons:
+            total_spots = len(polygons)
             occ = 0
-            for spot in spots:
-                if self.check_spot_occupancy(spot, vehicle_boxes):
+            mask_occ = np.zeros_like(frame)
+            mask_free = np.zeros_like(frame)
+            for poly in polygons:
+                is_occ = False
+                for (x1, y1, x2, y2) in vehicle_boxes:
+                    if self.iou_polygon_bbox(poly, (x1, y1, x2, y2)) >= Config.POLYGON_IOU_THRESHOLD:
+                        is_occ = True
+                        break
+                poly_arr = np.array(poly, np.int32)
+                if is_occ:
                     occ += 1
-                    color = self.occupied_color
+                    cv2.fillPoly(mask_occ, [poly_arr], self.occupied_color)
                 else:
-                    color = self.available_color
-                x1, y1, x2, y2 = [int(v) for v in spot]
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                    cv2.fillPoly(mask_free, [poly_arr], self.available_color)
+            frame = cv2.addWeighted(mask_occ, 0.3, frame, 1, 0)
+            frame = cv2.addWeighted(mask_free, 0.3, frame, 1, 0)
             stats = {'total': total_spots, 'occupied': occ, 'available': total_spots - occ}
             return frame, stats
         
