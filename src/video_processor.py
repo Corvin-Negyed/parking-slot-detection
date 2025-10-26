@@ -32,17 +32,20 @@ class VideoProcessor:
         
     def open_video(self):
         """Open video source (file or stream)"""
+        print(f"Opening: {self.video_source}")
+        
         self.cap = cv2.VideoCapture(self.video_source)
         
         if not self.cap.isOpened():
-            raise ValueError(f"Cannot open video source: {self.video_source}")
+            print(f"ERROR: Cannot open {self.video_source}")
+            raise ValueError(f"Cannot open video: {self.video_source}")
         
         # Get video properties
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
-        # No default parking spots - will detect vehicles dynamically
+        print(f"Video OK: {self.width}x{self.height} @ {self.fps}fps")
         
         return True
     
