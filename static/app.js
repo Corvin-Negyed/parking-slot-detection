@@ -319,13 +319,27 @@ function displayAnalytics(analytics) {
         `;
     }
     
-    // Peak Hours
+    // Peak Hours with recommendations
     if (analytics.peak_hours) {
-        let peakHTML = '<table class="analytics-table"><thead><tr><th>Hour</th><th>Average</th><th>Max</th><th>Samples</th></tr></thead><tbody>';
+        let peakHTML = '<div class="peak-recommendation"><p><strong>Traffic Analysis:</strong></p><ul>';
+        analytics.peak_hours.forEach((peak, index) => {
+            const timeRange = `${String(peak.hour).padStart(2, '0')}:00 - ${String(peak.hour + 1).padStart(2, '0')}:00`;
+            if (index === 0) {
+                peakHTML += `<li>🔴 <strong>Peak Hour:</strong> ${timeRange} (Avg: ${peak.average} vehicles) - Avoid this time</li>`;
+            } else if (index === analytics.peak_hours.length - 1) {
+                peakHTML += `<li>🟢 <strong>Best Time:</strong> ${timeRange} (Avg: ${peak.average} vehicles) - Recommended!</li>`;
+            } else {
+                peakHTML += `<li>🟡 ${timeRange}: ${peak.average} vehicles</li>`;
+            }
+        });
+        peakHTML += '</ul></div>';
+        
+        peakHTML += '<table class="analytics-table"><thead><tr><th>Time</th><th>Average Vehicles</th><th>Maximum</th><th>Data Points</th></tr></thead><tbody>';
         analytics.peak_hours.forEach(peak => {
+            const timeRange = `${String(peak.hour).padStart(2, '0')}:00 - ${String(peak.hour + 1).padStart(2, '0')}:00`;
             peakHTML += `
                 <tr>
-                    <td>${peak.hour}:00 - ${peak.hour + 1}:00</td>
+                    <td><strong>${timeRange}</strong></td>
                     <td>${peak.average}</td>
                     <td>${peak.max}</td>
                     <td>${peak.samples}</td>
