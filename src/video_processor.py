@@ -25,7 +25,7 @@ class VideoProcessor:
         self.detector = ParkingDetector(parking_spots)
         self.db = DatabaseManager()
         self.is_running = False
-        self.frame_skip = 1  # Process every frame
+        self.frame_skip = 3  # Process every 3rd frame
         self.frame_count = 0
         self.previous_states = {}  # Track previous spot states
         self.current_stats = {'total': 0, 'occupied': 0, 'available': 0}  # Latest stats
