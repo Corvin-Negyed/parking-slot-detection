@@ -251,6 +251,26 @@ def get_hourly_analytics():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/clear_history', methods=['POST'])
+def clear_history():
+    """Clear all historical data"""
+    db = DatabaseManager()
+    
+    try:
+        db.clear_all_data()
+        storage_type = 'PostgreSQL' if db.use_postgres else 'CSV'
+        db.close()
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'{storage_type} history cleared successfully'
+        })
+    
+    except Exception as e:
+        db.close()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/stop')
 def stop_processing():
     """Stop current video processing"""
