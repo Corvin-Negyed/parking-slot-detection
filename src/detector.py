@@ -33,12 +33,13 @@ class ParkingDetector:
                         cls = int(box.cls[0])
                         conf = float(box.conf[0])
                         
-                        # Cars, trucks, buses, motorcycles
-                        if cls in [2, 3, 5, 7] and conf > 0.5:
+                        # Cars, trucks, buses, motorcycles - LOWER threshold
+                        if cls in [2, 3, 5, 7] and conf > 0.25:
                             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                             vehicles.append((int(x1), int(y1), int(x2), int(y2)))
+                            print(f"  Vehicle: class={cls}, conf={conf:.2f}, bbox=({int(x1)},{int(y1)},{int(x2)},{int(y2)})")
         
-        print(f"Detected {len(vehicles)} vehicles")
+        print(f"Total vehicles detected: {len(vehicles)}")
         return vehicles
     
     def update_parking_areas(self, vehicle_boxes):
