@@ -298,20 +298,23 @@ refreshHistoryBtn.addEventListener('click', () => {
 
 // Clear history button
 clearHistoryBtn.addEventListener('click', () => {
-    if (confirm('Are you sure you want to clear all history data? This cannot be undone.')) {
+    if (confirm('Clear all history data?')) {
         fetch('/clear_history', { method: 'POST' })
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                alert('History cleared successfully!');
                 loadHistory();
                 loadAnalytics();
-            } else {
-                alert('Error: ' + (data.error || 'Failed to clear history'));
+                
+                // Clear analytics display
+                document.getElementById('overallStats').innerHTML = 'No data available';
+                document.getElementById('trendAnalysis').innerHTML = 'No data available';
+                document.getElementById('peakHours').innerHTML = 'No data available';
+                document.getElementById('dailySummary').innerHTML = 'No data available';
             }
         })
         .catch(error => {
-            alert('Error clearing history: ' + error.message);
+            console.error('Error:', error);
         });
     }
 });
