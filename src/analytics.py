@@ -26,15 +26,21 @@ class VehicleAnalytics:
         parsed = []
         for det in self.detections:
             try:
+                # New format: (id, total_spots, occupied_spots, available_spots, occupancy_rate, timestamp)
                 # Handle both PostgreSQL datetime and CSV string
-                if isinstance(det[2], str):
-                    timestamp = datetime.strptime(det[2], '%Y-%m-%d %H:%M:%S')
+                timestamp_idx = 5 if len(det) > 5 else 2
+                
+                if isinstance(det[timestamp_idx], str):
+                    timestamp = datetime.strptime(det[timestamp_idx], '%Y-%m-%d %H:%M:%S')
                 else:
-                    timestamp = det[2]
+                    timestamp = det[timestamp_idx]
                 
                 parsed.append({
                     'id': det[0],
-                    'count': int(det[1]),
+                    'total': int(det[1]) if len(det) > 5 else 0,
+                    'count': int(det[2]) if len(det) > 5 else int(det[1]),
+                    'available': int(det[3]) if len(det) > 5 else 0,
+                    'occupancy_rate': float(det[4]) if len(det) > 5 else 0.0,
                     'timestamp': timestamp
                 })
             except Exception as e:
