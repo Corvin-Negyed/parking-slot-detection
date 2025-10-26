@@ -62,7 +62,7 @@ class DatabaseManager:
         if not os.path.exists(csv_path):
             with open(csv_path, 'w', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow(['id', 'vehicle_count', 'timestamp'])
+                writer.writerow(['id', 'total_spots', 'occupied_spots', 'available_spots', 'occupancy_rate', 'timestamp'])
     
     def save_detection(self, vehicle_count):
         """Save vehicle detection event to database or CSV"""
