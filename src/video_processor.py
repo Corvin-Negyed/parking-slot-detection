@@ -53,6 +53,12 @@ class VideoProcessor:
             self.detector.lines_detected = False
         if hasattr(self.detector, 'parking_spots'):
             self.detector.parking_spots = []
+        if hasattr(self.detector, 'polygons_norm'):
+            # reload polygons only if enabled by config; otherwise keep empty
+            if Config.USE_POLYGON_FILE:
+                self.detector.load_polygon_spots()
+            else:
+                self.detector.polygons_norm = []
         if hasattr(self.detector, 'scaled_cache'):
             self.detector.scaled_cache = {'key': None, 'polys': []}
         # Reset runtime counters
