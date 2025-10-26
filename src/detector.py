@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import pickle
 from ultralytics import YOLO
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon as ShapelyPolygon
 from src.config import Config
 
 
@@ -91,6 +91,18 @@ class ParkingDetector:
         scaled = [[(int(px * frame_w), int(py * frame_h)) for px, py in poly] for poly in self.polygons_norm]
         self.scaled_cache = {'key': key, 'polys': scaled}
         return scaled
+
+    def iou_polygon_bbox(self, poly_pts, bbox):
+        """IoU between polygon and bbox (x1,y1,x2,y2)."""
+        try:
+            pg = ShapelyPolygon(poly_pts)
+            x1, y1, x2, y2 = bbox
+            bb = ShapelyPolygon([(x1, y1), (x1, y2), (x2, y2), (x2, y1)])
+            inter = pg.intersection(bb).area
+            uni = pg.union(bb).area
+            return (inter / uni) if uni > 0 else 0.0
+        except Exception:
+            return 0.0
         
     def detect_parking_lines(self, frame):
         """
@@ -324,12 +336,10 @@ class ParkingDetector:
             # Check each polygon
             for polygon in polys:
                 is_occupied = False
-                
-                # Check if any vehicle center is inside polygon
+                # Use IoU against each detected vehicle bbox for robust occupancy
                 for x1, y1, x2, y2 in vehicle_boxes:
-                    center = ((x1 + x2) // 2, (y1 + y2) // 2)
-                    
-                    if self.is_point_in_polygon(center, polygon):
+                    iou = self.iou_polygon_bbox(polygon, (x1, y1, x2, y2))
+                    if iou >= Config.POLYGON_IOU_THRESHOLD:
                         is_occupied = True
                         break
                 
