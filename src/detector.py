@@ -11,12 +11,12 @@ from src.config import Config
 
 
 class ParkingDetector:
-    def __init__(self):
+    def __init__(self, parking_spots=None):
         """Initialize parking detector with YOLOv8 model"""
         self.model = YOLO(Config.MODEL_PATH)
         self.occupied_color = (0, 0, 255)  # Red
         self.available_color = (0, 255, 0)  # Green
-        self.parking_spots = []
+        self.parking_spots = parking_spots or []
         
     def detect_white_lines(self, frame):
         """Detect small white parking lines"""
