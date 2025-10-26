@@ -18,28 +18,28 @@ class ParkingDetector:
         self.spots_initialized = False
         
     def detect_parking_lines(self, frame):
-        """Detect white parking divider lines specifically"""
+        """Advanced parking line detection"""
+        h, w = frame.shape[:2]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # High threshold for bright white only (parking lines are very white)
-        _, white = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
+        # Strong white detection
+        _, white = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY)
         
-        # Morphological operations to remove noise
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+        # Clean up
+        kernel = np.ones((2, 2), np.uint8)
         white = cv2.morphologyEx(white, cv2.MORPH_CLOSE, kernel)
-        white = cv2.morphologyEx(white, cv2.MORPH_OPEN, kernel)
         
-        # Edge detection
-        edges = cv2.Canny(white, 100, 200, apertureSize=3)
+        # Edge
+        edges = cv2.Canny(white, 50, 150)
         
-        # Detect lines - longer lines for parking dividers
+        # Detect lines with stricter parameters
         lines = cv2.HoughLinesP(
             edges,
             rho=1,
             theta=np.pi/180,
-            threshold=80,
-            minLineLength=40,  # Parking lines are long
-            maxLineGap=15
+            threshold=50,
+            minLineLength=int(h * 0.1),  # At least 10% of height
+            maxLineGap=20
         )
         
         return lines if lines is not None else []
@@ -170,14 +170,16 @@ class ParkingDetector:
         """Main detection function"""
         h, w = frame.shape[:2]
         
-        # Initialize parking spots once
+        # Initialize parking spots from lines
         if not self.spots_initialized:
             lines = self.detect_parking_lines(frame)
-            self.parking_spots = self.create_spots_from_lines(lines, w, h)
-            self.spots_initialized = True
+            spots = self.create_spots_from_lines(lines, w, h)
             
-            if self.parking_spots:
-                print(f"✓ Found {len(self.parking_spots)} parking spots from lines")
+            if spots and len(spots) > 0:
+                self.parking_spots = spots
+                print(f"✓ Detected {len(spots)} parking spots from white lines")
+            
+            self.spots_initialized = True
         
         # No spots detected
         if not self.parking_spots:
