@@ -18,63 +18,101 @@ class ParkingDetector:
         self.spots_initialized = False
         
     def detect_parking_lines(self, frame):
-        """Detect white parking lines"""
+        """Detect white parking divider lines specifically"""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # Detect white areas
-        _, white = cv2.threshold(gray, 210, 255, cv2.THRESH_BINARY)
+        # High threshold for bright white only (parking lines are very white)
+        _, white = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
+        
+        # Morphological operations to remove noise
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+        white = cv2.morphologyEx(white, cv2.MORPH_CLOSE, kernel)
+        white = cv2.morphologyEx(white, cv2.MORPH_OPEN, kernel)
         
         # Edge detection
-        edges = cv2.Canny(white, 50, 150)
+        edges = cv2.Canny(white, 100, 200, apertureSize=3)
         
-        # Detect lines
-        lines = cv2.HoughLinesP(edges, 1, np.pi/180, 50, minLineLength=30, maxLineGap=10)
+        # Detect lines - longer lines for parking dividers
+        lines = cv2.HoughLinesP(
+            edges,
+            rho=1,
+            theta=np.pi/180,
+            threshold=80,
+            minLineLength=40,  # Parking lines are long
+            maxLineGap=15
+        )
         
         return lines if lines is not None else []
     
     def create_spots_from_lines(self, lines, w, h):
-        """Create parking spots from lines"""
+        """Create parking spots from parallel divider lines"""
         if len(lines) < 2:
             return []
         
-        spots = []
-        line_list = []
-        
+        # Analyze line orientations
+        line_data = []
         for line in lines:
             x1, y1, x2, y2 = line[0]
-            angle = np.abs(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
             length = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+            angle = np.degrees(np.arctan2(y2 - y1, x2 - x1))
             
-            # Keep angled lines (parking dividers)
-            if 30 < angle < 150 and length > 25:
-                cx = (x1 + x2) // 2
-                cy = (y1 + y2) // 2
-                line_list.append({'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'cx': cx, 'cy': cy, 'angle': angle})
+            # Normalize angle to 0-180
+            if angle < 0:
+                angle += 180
+            
+            cx = (x1 + x2) / 2
+            cy = (y1 + y2) / 2
+            
+            # Keep long lines only (parking dividers are prominent)
+            if length > h * 0.08:  # At least 8% of frame height
+                line_data.append({
+                    'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2,
+                    'cx': cx, 'cy': cy,
+                    'angle': angle,
+                    'length': length
+                })
         
-        if len(line_list) < 2:
+        if len(line_data) < 2:
             return []
         
-        # Sort by center x
-        line_list.sort(key=lambda l: l['cx'])
+        # Find dominant angle (parking lines are parallel)
+        angles = [l['angle'] for l in line_data]
+        hist, bins = np.histogram(angles, bins=36)  # 5-degree bins
+        dominant_idx = np.argmax(hist)
+        dominant_angle = (bins[dominant_idx] + bins[dominant_idx + 1]) / 2
         
-        # Create spots between adjacent lines
-        for i in range(len(line_list) - 1):
-            l1 = line_list[i]
-            l2 = line_list[i + 1]
+        # Keep only parallel lines (within ±10 degrees of dominant)
+        parallel_lines = []
+        for l in line_data:
+            if abs(l['angle'] - dominant_angle) < 10:
+                parallel_lines.append(l)
+        
+        if len(parallel_lines) < 2:
+            return []
+        
+        # Sort lines LEFT to RIGHT (by x coordinate)
+        parallel_lines.sort(key=lambda l: l['cx'])
+        
+        spots = []
+        
+        # Create spots between adjacent parallel lines (LEFT and RIGHT neighbors)
+        for i in range(len(parallel_lines) - 1):
+            left_line = parallel_lines[i]
+            right_line = parallel_lines[i + 1]
             
-            # Distance check
-            dist = abs(l2['cx'] - l1['cx'])
+            # Check spacing (typical parking spot width)
+            spacing = abs(right_line['cx'] - left_line['cx'])
             
-            if 40 < dist < 200:  # Reasonable parking spot width
-                # Create quadrilateral
+            if 35 < spacing < 180:  # Valid parking spot width
+                # Create quadrilateral between the two lines
                 poly = [
-                    (l1['x1'], l1['y1']),
-                    (l1['x2'], l1['y2']),
-                    (l2['x2'], l2['y2']),
-                    (l2['x1'], l2['y1'])
+                    (int(left_line['x1']), int(left_line['y1'])),
+                    (int(left_line['x2']), int(left_line['y2'])),
+                    (int(right_line['x2']), int(right_line['y2'])),
+                    (int(right_line['x1']), int(right_line['y1']))
                 ]
                 
-                # Validate
+                # Keep only if within frame
                 if all(0 <= x < w and 0 <= y < h for x, y in poly):
                     spots.append(poly)
         
