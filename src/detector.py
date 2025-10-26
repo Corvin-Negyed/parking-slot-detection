@@ -280,7 +280,7 @@ class ParkingDetector:
     
     def draw_detections(self, frame, vehicle_boxes):
         """
-        Detect parking spots from lines and check vehicle occupancy
+        Draw parking spots using polygons and check occupancy
         
         Args:
             frame: Video frame to draw on
@@ -289,54 +289,60 @@ class ParkingDetector:
         Returns:
             Frame with drawn parking spots and statistics
         """
-        frame_height, frame_width = frame.shape[:2]
-        
-        # Detect parking lines and create spots (only once or periodically)
-        if not self.lines_detected or not self.parking_spots:
-            lines = self.detect_parking_lines(frame)
-            detected_spots = self.create_spots_from_lines(lines, frame_width, frame_height)
+        # Use polygon spots if available
+        if self.polygon_spots and len(self.polygon_spots) > 0:
+            total_spots = len(self.polygon_spots)
+            occupied_count = 0
             
-            if detected_spots and len(detected_spots) > 0:
-                self.parking_spots = detected_spots
-                self.lines_detected = True
-                print(f"Detected {len(self.parking_spots)} parking spots from lines")
-        
-        # If no spots detected from lines, use fallback
-        if not self.parking_spots:
-            # Fallback: Use detected vehicles to estimate spots
-            if vehicle_boxes:
-                self.parking_spots = [(x1, y1, x2, y2) for x1, y1, x2, y2 in vehicle_boxes]
-        
-        total_spots = len(self.parking_spots)
-        occupied_count = 0
-        
-        # Check each parking spot for occupancy
-        for i, spot in enumerate(self.parking_spots):
-            is_occupied = self.check_spot_occupancy(spot, vehicle_boxes)
+            # Create masks
+            mask_occupied = np.zeros_like(frame)
+            mask_available = np.zeros_like(frame)
             
-            if is_occupied:
-                occupied_count += 1
-                color = self.occupied_color
-            else:
-                color = self.available_color
+            # Check each polygon
+            for polygon in self.polygon_spots:
+                is_occupied = False
+                
+                # Check if any vehicle center is inside polygon
+                for x1, y1, x2, y2 in vehicle_boxes:
+                    center = ((x1 + x2) // 2, (y1 + y2) // 2)
+                    
+                    if self.is_point_in_polygon(center, polygon):
+                        is_occupied = True
+                        break
+                
+                # Draw polygon
+                poly_array = np.array(polygon, dtype=np.int32)
+                
+                if is_occupied:
+                    occupied_count += 1
+                    cv2.fillPoly(mask_occupied, [poly_array], self.occupied_color)
+                else:
+                    cv2.fillPoly(mask_available, [poly_array], self.available_color)
             
-            # Draw parking spot
-            x1, y1, x2, y2 = [int(v) for v in spot]
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            # Blend
+            frame = cv2.addWeighted(mask_occupied, 0.3, frame, 1, 0)
+            frame = cv2.addWeighted(mask_available, 0.3, frame, 1, 0)
             
-            # Draw spot number
-            cv2.putText(frame, str(i + 1), (x1 + 5, y1 + 20), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            stats = {
+                'total': total_spots,
+                'occupied': occupied_count,
+                'available': total_spots - occupied_count
+            }
+            
+            return frame, stats
         
-        available_spots = total_spots - occupied_count
-        
-        stats = {
-            'total': total_spots,
-            'occupied': occupied_count,
-            'available': available_spots
-        }
-        
-        return frame, stats
+        # Fallback: just show vehicles
+        else:
+            for i, (x1, y1, x2, y2) in enumerate(vehicle_boxes):
+                cv2.rectangle(frame, (x1, y1), (x2, y2), self.occupied_color, 2)
+            
+            stats = {
+                'total': len(vehicle_boxes),
+                'occupied': len(vehicle_boxes),
+                'available': 0
+            }
+            
+            return frame, stats
     
     def _get_spot_center(self, spot):
         """Get center point of a parking spot"""
