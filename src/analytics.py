@@ -1,7 +1,3 @@
-"""
-Analytics module for vehicle detection data analysis.
-Provides statistical insights and time-based analysis.
-"""
 
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -9,24 +5,16 @@ import statistics
 
 
 class VehicleAnalytics:
-    """Analyze vehicle detection data for insights"""
     
     def __init__(self, detections):
-        """
-        Initialize analytics with detection data
-        
-        Args:
-            detections: List of detection records [(id, vehicle_count, timestamp), ...]
-        """
         self.detections = detections
         self.parsed_data = self._parse_detections()
     
     def _parse_detections(self):
-        """Parse detections into structured format"""
         parsed = []
         for det in self.detections:
             try:
-                # New format: (id, total_spots, occupied_spots, available_spots, occupancy_rate, timestamp)
+                # format: (id, total_spots, occupied_spots, available_spots, occupancy_rate, timestamp)
                 # Handle both PostgreSQL datetime and CSV string
                 timestamp_idx = 5 if len(det) > 5 else 2
                 
@@ -50,7 +38,6 @@ class VehicleAnalytics:
         return sorted(parsed, key=lambda x: x['timestamp'])
     
     def get_hourly_distribution(self):
-        """Get vehicle count distribution by hour of day"""
         hourly_counts = defaultdict(list)
         
         for det in self.parsed_data:
@@ -80,7 +67,6 @@ class VehicleAnalytics:
         return hourly_stats
     
     def get_peak_hours(self, top_n=5):
-        """Get top N peak hours with highest average vehicle count"""
         hourly = self.get_hourly_distribution()
         sorted_hours = sorted(
             hourly.values(), 
@@ -90,7 +76,6 @@ class VehicleAnalytics:
         return sorted_hours[:top_n]
     
     def get_daily_summary(self):
-        """Get summary by day"""
         daily_counts = defaultdict(list)
         
         for det in self.parsed_data:
@@ -110,13 +95,6 @@ class VehicleAnalytics:
         return daily_stats
     
     def get_time_range_stats(self, start_time=None, end_time=None):
-        """
-        Get statistics for specific time range
-        
-        Args:
-            start_time: Start datetime (None = beginning)
-            end_time: End datetime (None = now)
-        """
         if not start_time and self.parsed_data:
             start_time = self.parsed_data[0]['timestamp']
         if not end_time:
@@ -151,7 +129,6 @@ class VehicleAnalytics:
         }
     
     def get_trend_analysis(self):
-        """Analyze trend over time (increasing/decreasing)"""
         if len(self.parsed_data) < 2:
             return {'trend': 'insufficient_data'}
         
@@ -180,7 +157,6 @@ class VehicleAnalytics:
         }
     
     def get_occupancy_levels(self):
-        """Categorize detections into occupancy levels"""
         if not self.parsed_data:
             return {}
         
@@ -219,7 +195,6 @@ class VehicleAnalytics:
         }
     
     def get_comprehensive_report(self):
-        """Get comprehensive analytics report"""
         if not self.parsed_data:
             return {'error': 'No data available for analysis'}
         
