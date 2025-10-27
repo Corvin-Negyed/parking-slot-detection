@@ -38,6 +38,11 @@ This project implements a smart parking management system using computer vision 
 
 The main objective is to track parking spot status over time by logging when spaces become occupied or available. This historical data enables valuable insights such as identifying peak parking hours and usage patterns.
 
+##Screenshots
+ <img src="static/screenshots/s1.png"/><br/>
+ <img src="static/screenshots/s2.png"/><br/>
+ <img src="static/screenshots/s3.png"><br/>
+
 ## Features
 
 - Real-time parking space detection using YOLOv8
