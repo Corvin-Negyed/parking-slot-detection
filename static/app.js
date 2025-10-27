@@ -1,9 +1,3 @@
-/**
- * SoloVision - Smart Parking Management System
- * Frontend JavaScript for video upload and real-time detection
- * Handles drag-drop, video streaming, and statistics display
- */
-
 // DOM Elements
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
@@ -94,15 +88,12 @@ function uploadVideo(file) {
     const formData = new FormData();
     formData.append('file', file);
     
-    // Show progress
     uploadProgress.style.display = 'block';
     progressFill.style.width = '0%';
     progressText.textContent = 'Uploading...';
     
-    // Create XMLHttpRequest for upload progress
     const xhr = new XMLHttpRequest();
     
-    // Track upload progress
     xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) {
             const percentComplete = (e.loaded / e.total) * 100;
@@ -111,21 +102,29 @@ function uploadVideo(file) {
         }
     });
     
-    // Handle upload completion
     xhr.addEventListener('load', () => {
         if (xhr.status === 200) {
-            const response = JSON.parse(xhr.responseText);
-            progressText.textContent = 'Upload complete! Starting detection...';
-            setTimeout(() => {
+            try {
+                const response = JSON.parse(xhr.responseText);
+                progressText.textContent = 'Processing video...';
+                    setTimeout(() => {
+                        uploadProgress.style.display = 'none';
+                        startVideoFeed();
+                    }, 1000);
+                } catch (e) {
+                    showStatus('Error processing response', 'error');
+                    uploadProgress.style.display = 'none';
+                }
+            } else {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    showStatus('Upload failed: ' + (response.error || 'Unknown error'), 'error');
+                } catch (e) {
+                    showStatus('Upload failed: Server error', 'error');
+                }
                 uploadProgress.style.display = 'none';
-                startVideoFeed();
-            }, 1000);
-        } else {
-            const response = JSON.parse(xhr.responseText);
-            showStatus('Upload failed: ' + (response.error || 'Unknown error'), 'error');
-            uploadProgress.style.display = 'none';
-        }
-    });
+            }
+        });
     
     // Handle errors
     xhr.addEventListener('error', () => {
@@ -179,13 +178,19 @@ function startVideoFeed() {
     historySection.style.display = 'block';
     analyticsSection.style.display = 'block';
     
-    // Set video feed source
+    // Set video feed with error handling
     videoFeed.src = '/video_feed?t=' + new Date().getTime();
     
-    // Start stats update interval
-    startStatsUpdate();
+    videoFeed.onerror = function() {
+        console.error('Video feed error, retrying...');
+        setTimeout(() => {
+            if (videoSection.style.display === 'block') {
+                videoFeed.src = '/video_feed?t=' + new Date().getTime();
+            }
+        }, 2000);
+    };
     
-    // Load history and analytics
+    startStatsUpdate();
     loadHistory();
     loadAnalytics();
 }
@@ -207,6 +212,17 @@ stopBtn.addEventListener('click', () => {
         availableSpots.textContent = '0';
         occupancyRate.textContent = '0%';
         
+        // Reset stage info
+        const currentStage = document.getElementById('currentStage');
+        const orientation = document.getElementById('orientation');
+        const detectedVehicles = document.getElementById('detectedVehicles');
+        const gridStatus = document.getElementById('gridStatus');
+        
+        if (currentStage) currentStage.textContent = 'Initializing...';
+        if (orientation) orientation.textContent = 'Unknown';
+        if (detectedVehicles) detectedVehicles.textContent = '0';
+        if (gridStatus) gridStatus.textContent = 'Not Built';
+        
         // Clear intervals
         if (window.statsInterval) {
             clearInterval(window.statsInterval);
@@ -224,10 +240,16 @@ function startStatsUpdate() {
         clearInterval(window.statsInterval);
     }
     
-    // Update stats every 2 seconds
+    // Update stats with timeout and error handling
     window.statsInterval = setInterval(() => {
-        fetch('/stats')
-        .then(response => response.json())
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        fetch('/stats', { signal: controller.signal })
+        .then(response => {
+            clearTimeout(timeoutId);
+            return response.json();
+        })
         .then(data => {
             if (data.error) return;
             
@@ -235,14 +257,61 @@ function startStatsUpdate() {
             occupiedSpots.textContent = data.occupied || 0;
             availableSpots.textContent = data.available || 0;
             
-            // Calculate and display occupancy rate
             const rate = data.total > 0 ? ((data.occupied / data.total) * 100).toFixed(1) : 0;
             occupancyRate.textContent = rate + '%';
+            
+            updateStageInfo(data);
         })
         .catch(error => {
-            console.error('Error fetching stats:', error);
+            clearTimeout(timeoutId);
+            if (error.name !== 'AbortError') {
+                console.error('Stats error:', error);
+            }
         });
-    }, 2000);
+    }, 1000);
+}
+
+// Update stage information display
+function updateStageInfo(data) {
+    const currentStage = document.getElementById('currentStage');
+    const orientation = document.getElementById('orientation');
+    const detectedVehicles = document.getElementById('detectedVehicles');
+    const gridStatus = document.getElementById('gridStatus');
+    
+    // Update current stage
+    if (currentStage && data.stage_description) {
+        currentStage.textContent = data.stage_description;
+        currentStage.className = 'stage-value stage-' + data.stage;
+    }
+    
+    // Update orientation
+    if (orientation) {
+        orientation.textContent = data.orientation || 'Unknown';
+        orientation.className = 'stage-value';
+        if (data.orientation !== 'UNKNOWN') {
+            orientation.classList.add('orientation-detected');
+        }
+    }
+    
+    // Update detected vehicles
+    if (detectedVehicles) {
+        detectedVehicles.textContent = data.detected_vehicles || 0;
+        detectedVehicles.className = 'stage-value';
+        if (data.detected_vehicles > 0) {
+            detectedVehicles.classList.add('vehicles-detected');
+        }
+    }
+    
+    // Update grid status
+    if (gridStatus) {
+        if (data.grid_established) {
+            gridStatus.textContent = `Built (${data.grid_slots} slots)`;
+            gridStatus.className = 'stage-value grid-built';
+        } else {
+            gridStatus.textContent = 'Not Built';
+            gridStatus.className = 'stage-value';
+        }
+    }
 }
 
 // Load vehicle detection history
@@ -259,7 +328,7 @@ function loadHistory() {
     });
 }
 
-// Display history in table
+// Display history in table with "See More" functionality
 function displayHistory(detections, storage) {
     const storageInfo = document.getElementById('storageInfo');
     const tableBody = document.getElementById('historyTableBody');
@@ -275,20 +344,52 @@ function displayHistory(detections, storage) {
         return;
     }
     
-    // Add rows (already sorted by timestamp DESC from backend)
-    detections.forEach(detection => {
-        const row = document.createElement('tr');
-        const rate = detection.occupancy_rate ? detection.occupancy_rate.toFixed(1) : '0.0';
-        row.innerHTML = `
-            <td>${detection.id}</td>
-            <td>${detection.total_spots || 0}</td>
-            <td>${detection.occupied || 0}</td>
-            <td>${detection.available || 0}</td>
-            <td>${rate}%</td>
-            <td>${detection.timestamp}</td>
-        `;
-        tableBody.appendChild(row);
-    });
+    const initialDisplayCount = 5;
+    let showingAll = false;
+    
+    function renderRows(count) {
+        tableBody.innerHTML = '';
+        
+        // Add rows (already sorted by timestamp DESC from backend)
+        const rowsToShow = count === 'all' ? detections : detections.slice(0, count);
+        
+        rowsToShow.forEach(detection => {
+            const row = document.createElement('tr');
+            const rate = detection.occupancy_rate ? detection.occupancy_rate.toFixed(1) : '0.0';
+            row.innerHTML = `
+                <td>${detection.id}</td>
+                <td>${detection.total_spots || 0}</td>
+                <td>${detection.occupied || 0}</td>
+                <td>${detection.available || 0}</td>
+                <td>${rate}%</td>
+                <td>${detection.timestamp}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+        
+        // Add "See More" / "See Less" button if needed
+        if (detections.length > initialDisplayCount) {
+            const buttonRow = document.createElement('tr');
+            buttonRow.className = 'see-more-row';
+            buttonRow.innerHTML = `
+                <td colspan="6" style="text-align: center; padding: 1rem;">
+                    <button class="btn btn-secondary btn-small" id="seeMoreBtn">
+                        ${showingAll ? 'See Less' : `See More (${detections.length - initialDisplayCount} more)`}
+                    </button>
+                </td>
+            `;
+            tableBody.appendChild(buttonRow);
+            
+            // Add click handler
+            document.getElementById('seeMoreBtn').addEventListener('click', () => {
+                showingAll = !showingAll;
+                renderRows(showingAll ? 'all' : initialDisplayCount);
+            });
+        }
+    }
+    
+    // Initial render
+    renderRows(initialDisplayCount);
 }
 
 // Refresh history button

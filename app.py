@@ -1,8 +1,3 @@
-"""
-SoloVision - Smart Parking Management System
-Main Flask application for web interface and video processing.
-"""
-
 import os
 import time
 from flask import Flask, render_template, request, jsonify, Response
@@ -16,9 +11,11 @@ from src.analytics import VehicleAnalytics
 app = Flask(__name__)
 CORS(app)
 
-# Configure upload folder
+# Configure upload folder and timeouts
 app.config['UPLOAD_FOLDER'] = Config.UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # Create upload folder if it doesn't exist
 os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
@@ -41,52 +38,61 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_video():
-    """Handle video file upload"""
+    """Handle video file upload with error handling"""
     global current_processor
     
-    # Check if file is in request
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     
     file = request.files['file']
     
-    # Check if filename is empty
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
     
-    # Check if file is allowed
     if not allowed_file(file.filename):
-        return jsonify({'error': 'File type not allowed'}), 400
+        return jsonify({'error': 'Invalid file type'}), 400
     
     try:
-        # Save file
         filename = secure_filename(file.filename)
         timestamp = str(int(time.time()))
         filename = f"{timestamp}_{filename}"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
         file.save(filepath)
         
-        # Stop current processor if exists
+        if not os.path.exists(filepath):
+            return jsonify({'error': 'File save failed'}), 500
+        
         if current_processor:
-            current_processor.stop()
-            current_processor.close_video()
+            try:
+                current_processor.stop()
+                current_processor.close_video()
+            except:
+                pass
+            current_processor = None
         
-        # Create new video processor
         current_processor = VideoProcessor(filepath)
-        success = current_processor.open_video()
         
-        if not success:
-            return jsonify({'error': 'Failed to open video file'}), 500
-        
-        print(f"Video uploaded and opened: {filename}")
+        try:
+            success = current_processor.open_video()
+            if not success:
+                return jsonify({'error': 'Cannot open video'}), 500
+        except Exception as e:
+            return jsonify({'error': f'Video open failed: {str(e)}'}), 500
         
         return jsonify({
             'status': 'success',
-            'message': 'Video uploaded successfully',
+            'message': 'Video ready',
             'filename': filename
         })
     
     except Exception as e:
+        if current_processor:
+            try:
+                current_processor.close_video()
+            except:
+                pass
+            current_processor = None
         return jsonify({'error': str(e)}), 500
 
 
@@ -126,36 +132,62 @@ def video_feed():
     global current_processor
     
     if not current_processor:
-        print("ERROR: No video processor available")
-        return jsonify({'error': 'No video source'}), 400
-    
-    print(f"Starting video feed stream...")
+        return Response(status=404)
     
     def generate():
-        """Generate video frames"""
+        """Generate video frames with error handling"""
         try:
             for frame_bytes, stats in current_processor.process_video_stream():
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        except Exception as e:
-            print(f"Video feed error: {e}")
-            import traceback
-            traceback.print_exc()
+                if frame_bytes:
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        except GeneratorExit:
+            pass
+        except Exception:
+            pass
     
-    return Response(generate(),
-                   mimetype='multipart/x-mixed-replace; boundary=frame')
+    response = Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 
 @app.route('/stats')
 def get_stats():
-    """Get current parking statistics"""
+    """Get current parking statistics with detailed stage information"""
     global current_processor
     
     if not current_processor:
         return jsonify({'error': 'No video source available'}), 400
     
-    # Return current stats from processor
-    return jsonify(current_processor.current_stats)
+    try:
+        # Get basic stats
+        stats = current_processor.current_stats.copy()
+        
+        # Add detailed detector information
+        detector = current_processor.detector
+        stats['stage'] = detector.stage
+        stats['is_initial_phase'] = detector.is_initial_phase
+        stats['orientation'] = detector.orientation
+        stats['detected_vehicles'] = len(detector.current_stationary_boxes)
+        stats['grid_established'] = detector.grid_established
+        stats['grid_slots'] = len(detector.parking_grid) if detector.parking_grid else 0
+        
+        # Stage description
+        if detector.is_initial_phase:
+            stats['stage_description'] = 'Stage 1: Learning - Detecting vehicles'
+        elif not detector.grid_established:
+            stats['stage_description'] = 'Stage 2: Building parking grid'
+        else:
+            stats['stage_description'] = f'Stage 3: Monitoring ({detector.orientation})'
+        
+        return jsonify(stats)
+    
+    except Exception as e:
+        print(f"Error getting stats: {e}")
+        # Return basic stats on error
+        return jsonify(current_processor.current_stats)
 
 
 @app.route('/history')
