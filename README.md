@@ -1,12 +1,13 @@
 <div align="center">
   <img src="static/logo.png" alt="SoloVision Logo" width="400"/>
 
-  ### Smart Parking Management System
-  
-  [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org)
-  [![Flask](https://img.shields.io/badge/Flask-3.0-green.svg)](https://flask.palletsprojects.com)
-  [![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-orange.svg)](https://github.com/ultralytics/ultralytics)
-  [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+### Smart Parking Management System
+
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org)
+[![Flask](https://img.shields.io/badge/Flask-3.0-green.svg)](https://flask.palletsprojects.com)
+[![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-orange.svg)](https://github.com/ultralytics/ultralytics)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 </div>
 
 ---
@@ -32,16 +33,29 @@
 
 </div>
 
+<br/>
+
 ## Project Overview
 
 This project implements a smart parking management system using computer vision technology. The system processes real-time camera feeds to detect parking space occupancy and provides both live monitoring and historical analytics.
 
 The main objective is to track parking spot status over time by logging when spaces become occupied or available. This historical data enables valuable insights such as identifying peak parking hours and usage patterns.
 
-##Screenshots
- <img src="static/screenshots/s1.png"/><br/>
- <img src="static/screenshots/s2.png"/><br/>
- <img src="static/screenshots/s3.png"><br/>
+<br/>
+
+## Screenshots
+
+ <img src="static/screenshots/s1.png"/>
+
+ <br/>
+
+ <img src="static/screenshots/s2.png"/>
+
+ <br/>
+
+ <img src="static/screenshots/s3.png">
+
+ <br/>
 
 ## Features
 
@@ -55,10 +69,14 @@ The main objective is to track parking spot status over time by logging when spa
 - Historical data analytics
 - Modern and responsive user interface
 
+<br/>
+
 ## Hardware Requirements
 
 - Personal computer for development and testing
 - Pre-recorded videos or live camera streams for testing
+
+<br/>
 
 ## Software Technologies
 
@@ -75,9 +93,12 @@ The main objective is to track parking spot status over time by logging when spa
 - PostgreSQL: Cloud database for historical data
 - HTML/CSS/JavaScript: Frontend interface
 
+<br/>
+
 ## Installation
 
 1. Clone the repository:
+
 ```
 git clone <repository-url>
 cd parking-slot-detection
@@ -86,50 +107,62 @@ cd parking-slot-detection
 2. Create and activate virtual environment:
 
 **On Linux/Mac:**
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
 **On Windows:**
+
 ```cmd
 python -m venv .venv
 .venv\Scripts\activate
 ```
 
 3. Install dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
 
 4. Configure environment variables:
+
 ```bash
 cp .env.example .env
 ```
+
 Edit the `.env` file with your database credentials and configuration.
 
 5. Initialize the database (optional if using PostgreSQL):
+
 ```bash
 python -c "from src.database import init_database; init_database()"
 ```
 
+<br/>
+
 ## Usage
 
 1. Start the application:
+
 ```
 python app.py
 ```
 
 2. Open your web browser and navigate to:
+
 ```
 http://localhost:5000
 ```
 
 3. Upload a video file:
+
    - Drag and drop a video file into the upload zone, or
    - Click "Browse Files" to select a video from your computer
 
 4. Alternatively, connect to a live camera stream:
+
    - Enter the camera stream URL in the input field
    - Click "Connect to Stream"
 
@@ -137,6 +170,8 @@ http://localhost:5000
    - Watch real-time detection with color-coded parking spots
    - Monitor live statistics (total spots, occupied, available)
    - Access historical data and analytics
+
+<br/>
 
 ## Database Configuration
 
@@ -146,6 +181,8 @@ The system supports two storage modes:
 2. CSV Fallback (Secondary): Automatically activates if PostgreSQL is unavailable
 
 Data is stored with timestamp information for historical analysis.
+
+<br/>
 
 ## Project Structure
 
