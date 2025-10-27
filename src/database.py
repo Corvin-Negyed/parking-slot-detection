@@ -1,8 +1,3 @@
-"""
-Database management module for SoloVision.
-Handles PostgreSQL connection with CSV fallback for data persistence.
-"""
-
 import psycopg2
 import csv
 import os
@@ -17,7 +12,6 @@ class DatabaseManager:
         self._setup_database()
     
     def _setup_database(self):
-        """Try to connect to PostgreSQL, fallback to CSV if unavailable"""
         try:
             self.connection = psycopg2.connect(
                 host=Config.DB_HOST,
@@ -28,15 +22,13 @@ class DatabaseManager:
             )
             self.use_postgres = True
             self._init_postgres_tables()
-            print("Successfully connected to PostgreSQL database")
+            pass
         except Exception as e:
-            print(f"PostgreSQL connection failed: {e}")
-            print("Falling back to CSV storage")
+            pass
             self.use_postgres = False
             self._init_csv_storage()
     
     def _init_postgres_tables(self):
-        """Initialize PostgreSQL tables"""
         if not self.connection:
             return
         
@@ -55,7 +47,6 @@ class DatabaseManager:
         cursor.close()
     
     def _init_csv_storage(self):
-        """Initialize CSV storage"""
         csv_path = Config.CSV_DATA_PATH
         os.makedirs(os.path.dirname(csv_path), exist_ok=True)
         
@@ -65,14 +56,12 @@ class DatabaseManager:
                 writer.writerow(['id', 'total_spots', 'occupied_spots', 'available_spots', 'occupancy_rate', 'timestamp'])
     
     def save_detection(self, stats):
-        """Save parking statistics to database or CSV"""
         if self.use_postgres:
             self._save_to_postgres(stats)
         else:
             self._save_to_csv(stats)
     
     def _save_to_postgres(self, stats):
-        """Save statistics to PostgreSQL"""
         if not self.connection:
             return
         
@@ -87,10 +76,9 @@ class DatabaseManager:
             self.connection.commit()
             cursor.close()
         except Exception as e:
-            print(f"Error saving to PostgreSQL: {e}")
+            pass
     
     def _save_to_csv(self, stats):
-        """Save statistics to CSV file"""
         csv_path = Config.CSV_DATA_PATH
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
@@ -112,17 +100,15 @@ class DatabaseManager:
                 writer = csv.writer(f)
                 writer.writerow([next_id, stats['total'], stats['occupied'], stats['available'], occupancy_rate, timestamp])
         except Exception as e:
-            print(f"Error saving to CSV: {e}")
+            pass
     
     def get_recent_detections(self, limit=100):
-        """Get recent vehicle detection events"""
         if self.use_postgres:
             return self._get_from_postgres(limit)
         else:
             return self._get_from_csv(limit)
     
     def _get_from_postgres(self, limit):
-        """Get detections from PostgreSQL"""
         if not self.connection:
             return []
         
@@ -136,11 +122,10 @@ class DatabaseManager:
             cursor.close()
             return results
         except Exception as e:
-            print(f"Error reading from PostgreSQL: {e}")
+            pass
             return []
     
     def _get_from_csv(self, limit):
-        """Get detections from CSV file"""
         csv_path = Config.CSV_DATA_PATH
         
         if not os.path.exists(csv_path):
@@ -154,18 +139,16 @@ class DatabaseManager:
                 # Return in reverse order (most recent first)
                 return list(reversed(rows[-limit:])) if len(rows) > limit else list(reversed(rows))
         except Exception as e:
-            print(f"Error reading from CSV: {e}")
+            pass
             return []
     
     def clear_all_data(self):
-        """Clear all historical data"""
         if self.use_postgres:
             self._clear_postgres()
         else:
             self._clear_csv()
     
     def _clear_postgres(self):
-        """Clear PostgreSQL table"""
         if not self.connection:
             return
         
@@ -174,12 +157,11 @@ class DatabaseManager:
             cursor.execute("DELETE FROM vehicle_detections")
             self.connection.commit()
             cursor.close()
-            print("PostgreSQL history cleared")
+            pass
         except Exception as e:
-            print(f"Error clearing PostgreSQL: {e}")
+            pass
     
     def _clear_csv(self):
-        """Clear CSV file"""
         csv_path = Config.CSV_DATA_PATH
         
         try:
@@ -187,19 +169,17 @@ class DatabaseManager:
             with open(csv_path, 'w', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(['id', 'total_spots', 'occupied_spots', 'available_spots', 'occupancy_rate', 'timestamp'])
-            print("CSV history cleared")
+            pass
         except Exception as e:
-            print(f"Error clearing CSV: {e}")
+            pass
     
     def close(self):
-        """Close database connection"""
         if self.connection:
             self.connection.close()
 
 
 # Convenience functions
 def get_connection():
-    """Get database connection (for backward compatibility)"""
     try:
         conn = psycopg2.connect(
             host=Config.DB_HOST,
@@ -210,11 +190,10 @@ def get_connection():
         )
         return conn
     except Exception as e:
-        print(f"Database connection failed: {e}")
+        pass
         return None
 
 
 def init_database():
-    """Initialize database (for backward compatibility)"""
     db = DatabaseManager()
     db.close()
