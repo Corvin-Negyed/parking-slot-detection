@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Test detector with a simple frame"""
 
 import cv2
 import numpy as np

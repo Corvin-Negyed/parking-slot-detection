@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-"""
-Test script to verify all imports are working
-"""
 
 import sys
 
 def test_imports():
-    """Test all required imports"""
     print("Testing imports...")
     
     try:
